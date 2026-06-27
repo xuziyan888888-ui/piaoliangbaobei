@@ -5,3 +5,10 @@ dist/
 build/
 .env
 .env.*
+.env.local
+__pycache__/
+*.pyc
+.venv/
+data/
+outputs/
+测试图/
