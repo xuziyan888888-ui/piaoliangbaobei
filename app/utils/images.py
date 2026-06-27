@@ -40,6 +40,13 @@ def normalize_image_input(value: str) -> tuple[str, str]:
 def load_image_bytes(value: str) -> bytes:
     if is_local_file(value):
         return Path(value).read_bytes()
+    if not is_http_url(value) and not is_data_url(value):
+        path = Path(value)
+        if path.suffix:
+            try:
+                return path.read_bytes()
+            except OSError:
+                pass
     if is_data_url(value):
         _, payload = value.split(",", 1)
         return base64.b64decode(payload)

@@ -1,3 +1,4 @@
+import argparse
 import json
 import random
 import sys
@@ -12,7 +13,15 @@ from app.services.orchestrator import orchestrator
 from app.storage.memory_store import store
 
 
-TEST_DIR = Path(r"D:\水木年华\测试图")
+TEST_DIR = ROOT / "测试图"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", type=str, default=None, help="Path to source image")
+    parser.add_argument("--reference", type=str, default=None, help="Path to reference image")
+    parser.add_argument("--candidate-count", type=int, default=1)
+    return parser.parse_args()
 
 
 def pick_random_images() -> tuple[Path, Path]:
@@ -26,13 +35,18 @@ def pick_random_images() -> tuple[Path, Path]:
 
 
 def main() -> None:
-    source_image, reference_image = pick_random_images()
+    args = parse_args()
+    source_image = Path(args.source) if args.source else None
+    reference_image = Path(args.reference) if args.reference else None
+    if source_image is None or reference_image is None:
+        source_image, reference_image = pick_random_images()
+
     payload = JobCreateRequest(
         source_image=str(source_image),
         reference_image=str(reference_image),
         mode="full_transfer",
         preserve_accessories=True,
-        candidate_count=1,
+        candidate_count=args.candidate_count,
     )
     job = orchestrator.create_job(payload)
     result = orchestrator.run_job(job.job_id)
@@ -50,6 +64,7 @@ def main() -> None:
         "reference_extraction_summary": result.metadata.get("reference_extraction_summary"),
         "transfer_payload_summary": result.metadata.get("transfer_payload_summary"),
         "provider_prompt": result.metadata.get("provider_prompt"),
+        "stages": result.metadata.get("stages"),
         "source_image": str(source_image),
         "reference_image": str(reference_image),
     }

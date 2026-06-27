@@ -3,6 +3,20 @@ from pydantic import BaseModel, Field
 from app.models.job import Scores
 
 
+class PipelineDecision(BaseModel):
+    primary_pipeline: str
+    fallback_pipeline: str | None = None
+    reason: str = ""
+    capability_mode: str = "unknown"
+
+
+class PipelineAttempt(BaseModel):
+    pipeline: str
+    status: str
+    reason: str = ""
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
 class Pose(BaseModel):
     yaw: float = 0.0
     pitch: float = 0.0
@@ -48,12 +62,47 @@ class PreprocessResult(BaseModel):
         default_factory=lambda: MaskAsset(kind="accessory_mask", uri="mock://mask/accessory.png")
     )
     editable_hair_mask: MaskAsset = Field(
-        default_factory=lambda: MaskAsset(kind="editable_hair_mask", uri="mock://mask/editable_hair.png")
+        default_factory=lambda: MaskAsset(
+            kind="editable_hair_mask",
+            uri="mock://mask/editable_hair.png",
+        )
+    )
+    editable_makeup_mask: MaskAsset = Field(
+        default_factory=lambda: MaskAsset(
+            kind="editable_makeup_mask",
+            uri="mock://mask/editable_makeup.png",
+        )
+    )
+    face_lock_mask: MaskAsset = Field(
+        default_factory=lambda: MaskAsset(
+            kind="face_lock_mask",
+            uri="mock://mask/face_lock.png",
+        )
     )
     id_embedding: list[float] = Field(default_factory=list)
     face_mesh: FaceMeshAsset = Field(default_factory=FaceMeshAsset)
     accessory_tags: list[str] = Field(default_factory=list)
     quality_flags: list[str] = Field(default_factory=list)
+
+
+class RegionMaskSet(BaseModel):
+    hair: str | None = None
+    bangs: str | None = None
+    hairline: str | None = None
+    brow_left: str | None = None
+    brow_right: str | None = None
+    upper_eyelid_left: str | None = None
+    upper_eyelid_right: str | None = None
+    lower_eyelid_left: str | None = None
+    lower_eyelid_right: str | None = None
+    eyelashes_upper: str | None = None
+    eyelashes_lower: str | None = None
+    lips: str | None = None
+    blush_left: str | None = None
+    blush_right: str | None = None
+    nose_highlight: str | None = None
+    contour_left: str | None = None
+    contour_right: str | None = None
 
 
 class ColorFeature(BaseModel):
@@ -80,6 +129,12 @@ class HairFeatures(BaseModel):
     volume_side: float = 0.5
     hairline_exposure: float = 0.5
     side_locks: HairSideLocks = Field(default_factory=HairSideLocks)
+    primary_style: str = "unknown"
+    secondary_style: str = "unknown"
+    finish: str = "unknown"
+    gloss: float = 0.0
+    sleekness: float = 0.0
+    confidence: float = 0.5
 
 
 class BangsFeatures(BaseModel):
@@ -89,6 +144,7 @@ class BangsFeatures(BaseModel):
     length: str = "none"
     curve: str = "none"
     gap_ratio: float = 0.0
+    confidence: float = 0.5
 
 
 class BaseMakeupFeatures(BaseModel):
@@ -99,6 +155,9 @@ class BaseMakeupFeatures(BaseModel):
     glow: float = 0.0
     powderiness: float = 0.0
     intensity: float = 0.5
+    concealer_coverage: float = 0.0
+    brightness_level: float = 0.0
+    finish_confidence: float = 0.5
 
 
 class BlushFeatures(BaseModel):
@@ -107,6 +166,7 @@ class BlushFeatures(BaseModel):
     shape: str = "unknown"
     range: float = 0.0
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class ContourFeatures(BaseModel):
@@ -115,6 +175,7 @@ class ContourFeatures(BaseModel):
     cheek_contour: float = 0.0
     jaw_contour: float = 0.0
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class HighlightFeatures(BaseModel):
@@ -122,7 +183,10 @@ class HighlightFeatures(BaseModel):
     nose_highlight: float = 0.0
     cheek_highlight: float = 0.0
     under_eye_highlight: float = 0.0
+    forehead_highlight: float = 0.0
+    nose_tip_highlight: float = 0.0
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class EyebrowFeatures(BaseModel):
@@ -132,6 +196,7 @@ class EyebrowFeatures(BaseModel):
     arch: float = 0.0
     hair_texture: float = 0.0
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class EyelinerFeatures(BaseModel):
@@ -141,6 +206,7 @@ class EyelinerFeatures(BaseModel):
     thickness: float = 0.0
     tail_direction: str = "unknown"
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class EyeshadowFeatures(BaseModel):
@@ -150,6 +216,7 @@ class EyeshadowFeatures(BaseModel):
     gradient: str = "unknown"
     finish: str = "unknown"
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class EyelashesFeatures(BaseModel):
@@ -159,6 +226,7 @@ class EyelashesFeatures(BaseModel):
     curl: float = 0.0
     cluster_style: str = "unknown"
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class AegyoSalFeatures(BaseModel):
@@ -167,6 +235,7 @@ class AegyoSalFeatures(BaseModel):
     shadow_color: str = "unknown"
     shape: str = "unknown"
     intensity: float = 0.0
+    confidence: float = 0.5
 
 
 class LipFeatures(BaseModel):
@@ -176,6 +245,10 @@ class LipFeatures(BaseModel):
     gloss: float = 0.0
     saturation: float = 0.0
     intensity: float = 0.0
+    edge_definition: float = 0.0
+    cupid_bow_definition: float = 0.0
+    bite_effect: float = 0.0
+    confidence: float = 0.5
 
 
 class MakeupFeatures(BaseModel):
@@ -195,13 +268,18 @@ class TextureFeatures(BaseModel):
     skin_finish: str = "unknown"
     photo_style: str = "unknown"
     overall_vibe: str = "unknown"
+    confidence: float = 0.5
 
 
 class ReferenceParseResult(BaseModel):
+    region_masks: RegionMaskSet = Field(default_factory=RegionMaskSet)
     hair_features: HairFeatures = Field(default_factory=HairFeatures)
     bangs: BangsFeatures = Field(default_factory=BangsFeatures)
     makeup_features: MakeupFeatures = Field(default_factory=MakeupFeatures)
     texture_features: TextureFeatures = Field(default_factory=TextureFeatures)
+    style_caption: str = ""
+    consistency_flags: list[str] = Field(default_factory=list)
+    field_confidence_overrides: dict[str, float] = Field(default_factory=dict)
     negative_constraints: list[str] = Field(default_factory=list)
     normalized_prompt_tokens: list[str] = Field(default_factory=list)
     parse_confidence: float = 0.5

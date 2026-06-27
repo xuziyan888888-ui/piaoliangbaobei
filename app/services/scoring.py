@@ -10,13 +10,16 @@ class QualityScoringService:
         preprocess: PreprocessResult,
         reference: ReferenceParseResult,
     ) -> Scores:
-        identity_score = min(0.99, 0.88 + job.identity_lock_strength * 0.1)
+        is_two_stage = candidate.pipeline_type == "two_stage_local_edit"
+        identity_bonus = 0.02 if is_two_stage else 0.0
+        transfer_bonus = 0.03 if is_two_stage else 0.0
+        identity_score = min(0.99, 0.88 + job.identity_lock_strength * 0.1 + identity_bonus)
         transfer_score = min(
             0.99,
-            0.4 + job.makeup_strength * 0.25 + job.hairstyle_strength * 0.25,
+            0.4 + job.makeup_strength * 0.25 + job.hairstyle_strength * 0.25 + transfer_bonus,
         )
         accessory_score = 0.98 if job.preserve_accessories else 0.75
-        artifact_penalty = 0.05 if candidate.pipeline_type == "local_inpaint" else 0.1
+        artifact_penalty = 0.03 if is_two_stage else (0.05 if candidate.pipeline_type == "local_inpaint" else 0.1)
         final_score = (
             0.45 * identity_score
             + 0.30 * transfer_score

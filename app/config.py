@@ -26,6 +26,7 @@ _load_env_file()
 class ArkHTTPConfig:
     base_url: str = ""
     model: str = ""
+    mainline_enabled: bool = True
     generation_route: str = "global"
     auth_mode: str = "aksk"
     access_key: str = ""
@@ -47,6 +48,10 @@ class ArkHTTPConfig:
     @property
     def enabled(self) -> bool:
         return bool(self.base_url and self.access_key and self.secret_key)
+
+    @property
+    def mainline_configured(self) -> bool:
+        return self.enabled and bool(self.model)
 
 
 @dataclass
@@ -93,6 +98,8 @@ def load_config() -> AppConfig:
         ark_http=ArkHTTPConfig(
             base_url=os.getenv("ARK_IMAGE_EDIT_URL", "").strip(),
             model=os.getenv("ARK_MODEL", "").strip(),
+            mainline_enabled=os.getenv("ARK_MAINLINE_ENABLED", "true").strip().lower()
+            in {"1", "true", "yes"},
             generation_route=os.getenv("ARK_GENERATION_ROUTE", "global").strip(),
             auth_mode=os.getenv("ARK_AUTH_MODE", "aksk").strip(),
             access_key=os.getenv("ARK_ACCESS_KEY", "").strip(),
