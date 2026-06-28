@@ -1,6 +1,6 @@
 ﻿# Project Memory
 
-Last Updated: 2026-06-27 20:14 Asia/Shanghai
+Last Updated: 2026-06-28 18:18 Asia/Shanghai
 
 ## 妞ゅ湱娲伴惄顔界垼
 
@@ -344,4 +344,29 @@ Last Updated: 2026-06-27 20:14 Asia/Shanghai
   修改原因: 将 visual 模式的配饰保护收窄到眼镜主导局部区域，并把视觉模式下的配饰保护改成羽化融合，避免把头顶原图头发或脸侧锯齿重新贴回最终图。
 - 文件名: PROJECT_MEMORY.md
   修改原因: 追加记录 visual accessory refill 修复、手工后处理复验结果，以及两次新鲜重跑失败仍由 provider refine/inpaint 不稳定导致的事实。
+
+### [2026-06-28 18:18 Asia/Shanghai] visual hard-transfer scoring and oversampling validation
+- 时间: 2026-06-28 18:18 Asia/Shanghai
+- 实验名称: visual hard-transfer scoring and oversampling validation
+- 实验配置: 修改 `app/services/scoring.py` 与 `app/services/orchestrator.py`，将 `transfer_score` 从固定启发式改为“对候选结果图再次运行 reference parser 并按盘发/刘海/侧边碎发/妆容字段比对”的真实评分；为 `visual_identity` 的 Ark global base 阶段增加内部 oversampling（请求 1 张时实际生成 4 张），并把 `updo_missing` / `side_locks_missing` 等硬失败接入候选拒绝逻辑；随后使用 `origin.jpg -> reference.png` 真实运行 `scripts/run_random_generation.py --candidate-count 1 --identity-mode visual_identity` 验证。
+- 实验结果: `compileall app` 通过；真实任务 `job_69ca1bf2a62c4bf1b7c6b629c76516ed` 在前两轮 `ark_hybrid_mainline` 中都实际生成了 4 张 global base 候选，并记录 `oversampling={requested_candidate_count:1,effective_candidate_count:4,applied:true}`；4 张 global 图经再次解析后全部是 `down + side_6_4 + no side locks`，因此全部命中 `transfer_hard_failure:updo_missing` 与 `transfer_hard_failure:side_locks_missing`，对应真实 `transfer_score=0.46`；其中身份最好的 global 候选 `job_69ca1bf2a62c4bf1b7c6b629c76516ed_global_1.png` 为 `identity_score=0.6814`、`transfer_score=0.46`，因发型未迁移成功仍被拒绝；后续 `hybrid_makeup_refine_stage` 与 `two_stage_local_edit` 继续遇到 `Access Denied` / `cannot identify image file`，最终任务失败。
+- 实验结论: 两个优先级最高的工程改动已经真实接入并生效，系统现在能够在 visual mode 下“多采样 + 真妆发比对 + 硬拦错误发型候选”；当前新的失败点已经明确收敛为“公开 Ark global 这轮生成的 4 张候选本身都没有产出盘发主形态”，而不是评分还在误判或没有真的用上参考图。
+
+## 当前问题
+
+- 2026-06-28 18:18 Asia/Shanghai: 新的 visual hard-transfer 评分已经确认当前 `origin.jpg -> reference.png` 的 4 张 Ark global 候选全部仍是 `down` 发型，说明当前主瓶颈已经进一步收敛到 provider 生成端没有给出目标盘发轮廓，而不是候选筛选逻辑不够严格。
+- 2026-06-28 18:18 Asia/Shanghai: `hybrid_makeup_refine_stage` 与 `two_stage_local_edit` 仍持续返回 `Access Denied` / `cannot identify image file`，导致即便 oversampling 已经上线，系统也很难依赖局部 refine 链路去补救 global 候选。
+
+## 下一步计划
+
+- 在当前真实硬评分基础上继续提升 Ark global 命中率，优先考虑增加 visual mode oversampling 上限或继续强化 mainline prompt 中对 `updo_with_bangs / side locks / middle part` 的硬约束。
+- 单独排查 `two_stage_local_edit` 的 0 字节中间输出与 `cannot identify image file` 根因，避免 fallback 阶段继续因为无效图文件而浪费重试机会。
+
+## 最近修改文件
+
+### [2026-06-28 18:18 Asia/Shanghai] File updates
+- 文件名: app/services/scoring.py
+  修改原因: 将 visual mode 的 `transfer_score` 升级为基于候选结果图再次解析的真实妆发比对，并加入 `updo_missing`、`bangs_missing`、`side_locks_missing` 等硬失败标记。
+- 文件名: app/services/orchestrator.py
+  修改原因: 为 `visual_identity` 增加 Ark global base 阶段内部 oversampling，并将 transfer hard failures 接入候选拒绝逻辑与任务元数据。
 

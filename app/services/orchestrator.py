@@ -349,14 +349,19 @@ class TaskOrchestrator:
         control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
     ) -> tuple[list[CandidateResult], dict[str, object], PipelineAttempt]:
+        ark_job, oversampling_meta = self._resolve_visual_identity_generation_job(job)
         ark_candidates, ark_attempt = ark_mainline_worker.generate(
-            job,
+            ark_job,
             control_bundle,
             reference,
             pipeline_name="ark_hybrid_mainline",
         )
         if not ark_candidates:
-            return [], {"mode": "ark_hybrid_mainline", "ark_attempt": ark_attempt.model_dump(mode="json")}, ark_attempt
+            return [], {
+                "mode": "ark_hybrid_mainline",
+                "ark_attempt": ark_attempt.model_dump(mode="json"),
+                "oversampling": oversampling_meta,
+            }, ark_attempt
 
         self._persist_outputs(job, ark_candidates)
 
@@ -370,10 +375,14 @@ class TaskOrchestrator:
                 stage_name="hybrid_base_stage",
                 parent_candidate_id=None,
             )
-            for base_candidate, ark_candidate in zip(base_candidates, ark_candidates):
+            for base_index, (base_candidate, ark_candidate) in enumerate(zip(base_candidates, ark_candidates)):
                 base_candidate.metadata["provider_mode"] = "ark_http_mainline_hybrid_base"
                 base_candidate.metadata["provider_prompt"] = ark_candidate.metadata.get("provider_prompt")
                 base_candidate.metadata["local_output_path"] = ark_candidate.metadata.get("local_output_path")
+                base_candidate.metadata["oversampling"] = {
+                    **oversampling_meta,
+                    "candidate_index": base_index,
+                }
                 base_candidate.metadata["stage_context"] = {
                     **base_candidate.metadata.get("stage_context", {}),
                     "stage_name": "hybrid_base_stage",
@@ -433,6 +442,7 @@ class TaskOrchestrator:
             "visual_identity_base_candidate_count": (
                 len(ark_candidates) if job.identity_mode == "visual_identity" else 0
             ),
+            "oversampling": oversampling_meta,
             "ark_stage_attempt": ark_attempt.model_dump(mode="json"),
             "refine_stage_attempts": refine_attempts,
             "runs": runs,
@@ -442,6 +452,7 @@ class TaskOrchestrator:
             status="succeeded" if final_candidates else "failed",
             reason="ark_global_then_local_refine",
             metadata={
+                "oversampling": oversampling_meta,
                 "ark_stage_attempt": ark_attempt.model_dump(mode="json"),
                 "refine_stage_attempts": refine_attempts,
                 "run_count": len(runs),
@@ -591,7 +602,7 @@ class TaskOrchestrator:
         for candidate in candidates:
             scores = quality_scoring_service.score(job, candidate, preprocess, reference)
             candidate.metadata["scores"] = scores
-            rejection_reasons = self._evaluate_candidate_rejections(scores, gate)
+            rejection_reasons = self._evaluate_candidate_rejections(candidate, scores, gate)
             is_valid = not rejection_reasons
             for reason in rejection_reasons:
                 rejection_summary[reason] = rejection_summary.get(reason, 0) + 1
@@ -622,24 +633,48 @@ class TaskOrchestrator:
                     break
         return best, records, rejection_summary
 
-    def _evaluate_candidate_rejections(self, scores, gate: QualityGate) -> list[str]:
+    def _evaluate_candidate_rejections(self, candidate: CandidateResult, scores, gate: QualityGate) -> list[str]:
         reasons: list[str] = []
+        transfer_metric = candidate.metadata.get("transfer_metric")
+        hard_failures: list[str] = []
+        if isinstance(transfer_metric, dict):
+            for failure in transfer_metric.get("hard_failures", []):
+                if isinstance(failure, str) and failure:
+                    hard_failures.append(failure)
         visual_identity_override = (
             gate.identity_threshold <= 0.75
             and scores.identity_score >= 0.54
             and scores.transfer_score >= 0.82
             and scores.accessory_score >= 0.95
             and scores.artifact_penalty <= gate.artifact_penalty_threshold
+            and not hard_failures
         )
         if scores.identity_score < gate.identity_threshold and not visual_identity_override:
             reasons.append("identity_below_threshold")
         if scores.accessory_score < gate.accessory_threshold:
             reasons.append("accessory_below_threshold")
+        if hard_failures:
+            reasons.append("transfer_hard_failure")
+            reasons.extend([f"transfer_hard_failure:{failure}" for failure in hard_failures])
         if scores.transfer_score < gate.transfer_threshold:
             reasons.append("transfer_below_threshold")
         if scores.artifact_penalty > gate.artifact_penalty_threshold:
             reasons.append("artifact_penalty_above_threshold")
         return reasons
+
+    def _resolve_visual_identity_generation_job(self, job: JobRecord) -> tuple[JobRecord, dict[str, object]]:
+        requested_count = int(job.candidate_count)
+        effective_count = requested_count
+        if job.identity_mode == "visual_identity":
+            effective_count = max(requested_count, 4)
+        generation_job = job if effective_count == requested_count else job.model_copy(
+            update={"candidate_count": effective_count}
+        )
+        return generation_job, {
+            "requested_candidate_count": requested_count,
+            "effective_candidate_count": effective_count,
+            "applied": effective_count != requested_count,
+        }
 
     def _tune_control_bundle_for_retry(
         self,
