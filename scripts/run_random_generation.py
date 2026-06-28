@@ -21,6 +21,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", type=str, default=None, help="Path to source image")
     parser.add_argument("--reference", type=str, default=None, help="Path to reference image")
     parser.add_argument("--candidate-count", type=int, default=1)
+    parser.add_argument(
+        "--identity-mode",
+        type=str,
+        default="strict_identity",
+        choices=["strict_identity", "visual_identity"],
+        help="Identity optimization profile",
+    )
     return parser.parse_args()
 
 
@@ -45,6 +52,7 @@ def main() -> None:
         source_image=str(source_image),
         reference_image=str(reference_image),
         mode="full_transfer",
+        identity_mode=args.identity_mode,
         preserve_accessories=True,
         candidate_count=args.candidate_count,
     )
@@ -60,6 +68,9 @@ def main() -> None:
         else None,
         "reference_parse_result": store.get_reference_parse_result(job.job_id).model_dump(mode="json")
         if store.get_reference_parse_result(job.job_id)
+        else None,
+        "control_bundle": store.get_control_bundle(job.job_id).model_dump(mode="json")
+        if store.get_control_bundle(job.job_id)
         else None,
         "reference_extraction_summary": result.metadata.get("reference_extraction_summary"),
         "transfer_payload_summary": result.metadata.get("transfer_payload_summary"),

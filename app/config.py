@@ -28,6 +28,10 @@ class ArkHTTPConfig:
     model: str = ""
     mainline_enabled: bool = True
     generation_route: str = "global"
+    supports_executable_masks: bool = False
+    supports_control_image: bool = False
+    supports_identity_embedding: bool = False
+    supports_multi_image_reference: bool = True
     auth_mode: str = "aksk"
     access_key: str = ""
     secret_key: str = ""
@@ -101,6 +105,14 @@ def load_config() -> AppConfig:
             mainline_enabled=os.getenv("ARK_MAINLINE_ENABLED", "true").strip().lower()
             in {"1", "true", "yes"},
             generation_route=os.getenv("ARK_GENERATION_ROUTE", "global").strip(),
+            supports_executable_masks=os.getenv("ARK_SUPPORTS_EXECUTABLE_MASKS", "false").strip().lower()
+            in {"1", "true", "yes"},
+            supports_control_image=os.getenv("ARK_SUPPORTS_CONTROL_IMAGE", "false").strip().lower()
+            in {"1", "true", "yes"},
+            supports_identity_embedding=os.getenv("ARK_SUPPORTS_IDENTITY_EMBEDDING", "false").strip().lower()
+            in {"1", "true", "yes"},
+            supports_multi_image_reference=os.getenv("ARK_SUPPORTS_MULTI_IMAGE_REFERENCE", "true").strip().lower()
+            in {"1", "true", "yes"},
             auth_mode=os.getenv("ARK_AUTH_MODE", "aksk").strip(),
             access_key=os.getenv("ARK_ACCESS_KEY", "").strip(),
             secret_key=os.getenv("ARK_SECRET_KEY", "").strip(),

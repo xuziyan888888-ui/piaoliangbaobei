@@ -31,6 +31,7 @@ class JobCreateRequest(BaseModel):
     source_image: str = Field(description="Source image URL or base64")
     reference_image: str = Field(description="Reference image URL or base64")
     mode: Literal["full_transfer", "hair_only", "makeup_only"] = "full_transfer"
+    identity_mode: Literal["strict_identity", "visual_identity"] = "strict_identity"
     preserve_accessories: bool = True
     makeup_strength: float = Field(default=0.75, ge=0.0, le=1.0)
     hairstyle_strength: float = Field(default=0.85, ge=0.0, le=1.0)
@@ -49,6 +50,7 @@ class JobRecord(BaseModel):
     source_image: str
     reference_image: str
     mode: Literal["full_transfer", "hair_only", "makeup_only"] = "full_transfer"
+    identity_mode: Literal["strict_identity", "visual_identity"] = "strict_identity"
     preserve_accessories: bool = True
     makeup_strength: float = 0.75
     hairstyle_strength: float = 0.85
@@ -78,4 +80,5 @@ class JobArtifactsResponse(BaseModel):
     result_image: str | None = None
     preprocess_result: dict[str, object] | None = None
     reference_parse_result: dict[str, object] | None = None
+    control_bundle: dict[str, object] | None = None
     candidates: list[dict[str, object]] = Field(default_factory=list)

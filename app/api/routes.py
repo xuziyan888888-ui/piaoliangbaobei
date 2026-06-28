@@ -40,6 +40,7 @@ def get_job_artifacts(job_id: str) -> JobArtifactsResponse:
     candidates = store.get_candidates(job_id)
     preprocess_result = store.get_preprocess_result(job_id)
     reference_parse_result = store.get_reference_parse_result(job_id)
+    control_bundle = store.get_control_bundle(job_id)
     return JobArtifactsResponse(
         job_id=job_id,
         result_image=job.result_image,
@@ -47,5 +48,6 @@ def get_job_artifacts(job_id: str) -> JobArtifactsResponse:
         reference_parse_result=(
             reference_parse_result.model_dump(mode="json") if reference_parse_result else None
         ),
+        control_bundle=control_bundle.model_dump(mode="json") if control_bundle else None,
         candidates=[candidate.model_dump(mode="json") for candidate in candidates],
     )

@@ -1,6 +1,26 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.models.job import Scores
+
+
+class MainlineCapabilityProfile(BaseModel):
+    mainline_mode: Literal["native_executable", "hybrid", "text_reference_only", "disabled"] = (
+        "text_reference_only"
+    )
+    supports_executable_masks: bool = False
+    supports_control_image: bool = False
+    supports_identity_embedding: bool = False
+    supports_reference_image: bool = True
+    supports_multi_image_reference: bool = True
+    evidence_level: Literal["official_confirmed", "workspace_assumed", "unknown"] = "unknown"
+    confirmed_surfaces: list[str] = Field(default_factory=list)
+    missing_surfaces: list[str] = Field(default_factory=list)
+    control_surface: Literal["native_controls", "hybrid_controls", "text_reference_only", "disabled"] = (
+        "text_reference_only"
+    )
+    summary: str = ""
 
 
 class PipelineDecision(BaseModel):
@@ -8,6 +28,7 @@ class PipelineDecision(BaseModel):
     fallback_pipeline: str | None = None
     reason: str = ""
     capability_mode: str = "unknown"
+    capability_profile: MainlineCapabilityProfile | None = None
 
 
 class PipelineAttempt(BaseModel):
@@ -46,9 +67,72 @@ class FaceMeshAsset(BaseModel):
     uri: str = "mock://mesh/default.json"
     vertex_count: int = 468
     coordinate_system: str = "image_normalized"
+    source_landmark_count: int = 0
+    coverage_ratio: float = 0.0
+
+
+class RegionImageAsset(BaseModel):
+    kind: str
+    uri: str
+    width: int = 1024
+    height: int = 1024
+
+
+class ReferenceRegionAssets(BaseModel):
+    hair_patch: RegionImageAsset | None = None
+    bangs_patch: RegionImageAsset | None = None
+    eyes_patch: RegionImageAsset | None = None
+    brows_patch: RegionImageAsset | None = None
+    lips_patch: RegionImageAsset | None = None
+    cheeks_patch: RegionImageAsset | None = None
+    complexion_patch: RegionImageAsset | None = None
+
+
+class IdentityEmbeddingAsset(BaseModel):
+    vector: list[float] = Field(default_factory=list)
+    provider: str = "pseudo_preview"
+    dimension: int = 0
+    source: str = "face_lock_mask"
+    confidence: float = 0.0
+
+
+class GenerationStrengthControls(BaseModel):
+    makeup_strength: float = 0.75
+    hairstyle_strength: float = 0.85
+    identity_lock_strength: float = 0.95
+    preserve_accessories: bool = True
+
+
+class RegionBlendProfile(BaseModel):
+    source_weight: float = 0.0
+    style_weight: float = 1.0
+    notes: str = ""
+
+
+class RegionGatingPolicy(BaseModel):
+    strategy: str = "static_defaults"
+    face_core: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    feature_lock: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    contour: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    accessory: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    hair: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    makeup: RegionBlendProfile = Field(default_factory=RegionBlendProfile)
+    stage_overrides: dict[str, GenerationStrengthControls] = Field(default_factory=dict)
+    reasoning: list[str] = Field(default_factory=list)
+
+
+class QualityGate(BaseModel):
+    identity_threshold: float = 0.92
+    accessory_threshold: float = 0.8
+    transfer_threshold: float = 0.7
+    artifact_penalty_threshold: float = 0.2
+    max_retry_count: int = 3
+    reject_on_identity_failure: bool = True
+    reject_on_accessory_failure: bool = True
 
 
 class PreprocessResult(BaseModel):
+    source_image_ref: str = ""
     face_bbox: FaceBBox = Field(default_factory=FaceBBox)
     pose: Pose = Field(default_factory=Pose)
     landmarks_106: list[LandmarkPoint] = Field(default_factory=list)
@@ -79,10 +163,49 @@ class PreprocessResult(BaseModel):
             uri="mock://mask/face_lock.png",
         )
     )
-    id_embedding: list[float] = Field(default_factory=list)
+    feature_lock_mask: MaskAsset = Field(
+        default_factory=lambda: MaskAsset(
+            kind="feature_lock_mask",
+            uri="mock://mask/feature_lock.png",
+        )
+    )
+    contour_lock_mask: MaskAsset = Field(
+        default_factory=lambda: MaskAsset(
+            kind="contour_lock_mask",
+            uri="mock://mask/contour_lock.png",
+        )
+    )
+    id_embedding: IdentityEmbeddingAsset = Field(default_factory=IdentityEmbeddingAsset)
     face_mesh: FaceMeshAsset = Field(default_factory=FaceMeshAsset)
     accessory_tags: list[str] = Field(default_factory=list)
     quality_flags: list[str] = Field(default_factory=list)
+
+
+class GenerationControlBundle(BaseModel):
+    source_image: str
+    reference_image: str
+    mode: str = "full_transfer"
+    pipeline_variant: str = "two_stage_local_edit"
+    delivery_mode: Literal["native_controls", "hybrid_controls", "text_reference_only", "fallback_only"] = (
+        "text_reference_only"
+    )
+    id_mask: MaskAsset
+    style_mask: MaskAsset
+    accessory_mask: MaskAsset
+    face_lock_mask: MaskAsset
+    feature_lock_mask: MaskAsset
+    contour_lock_mask: MaskAsset
+    editable_hair_mask: MaskAsset
+    editable_makeup_mask: MaskAsset
+    face_bbox: FaceBBox = Field(default_factory=FaceBBox)
+    pose: Pose = Field(default_factory=Pose)
+    landmarks_106: list[LandmarkPoint] = Field(default_factory=list)
+    face_mesh: FaceMeshAsset = Field(default_factory=FaceMeshAsset)
+    identity_embedding: IdentityEmbeddingAsset = Field(default_factory=IdentityEmbeddingAsset)
+    controls: GenerationStrengthControls = Field(default_factory=GenerationStrengthControls)
+    region_gating_policy: RegionGatingPolicy | None = None
+    quality_gate: QualityGate = Field(default_factory=QualityGate)
+    capability_profile: MainlineCapabilityProfile | None = None
 
 
 class RegionMaskSet(BaseModel):
@@ -273,6 +396,7 @@ class TextureFeatures(BaseModel):
 
 class ReferenceParseResult(BaseModel):
     region_masks: RegionMaskSet = Field(default_factory=RegionMaskSet)
+    region_assets: ReferenceRegionAssets = Field(default_factory=ReferenceRegionAssets)
     hair_features: HairFeatures = Field(default_factory=HairFeatures)
     bangs: BangsFeatures = Field(default_factory=BangsFeatures)
     makeup_features: MakeupFeatures = Field(default_factory=MakeupFeatures)

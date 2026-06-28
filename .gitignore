@@ -12,3 +12,7 @@ __pycache__/
 data/
 outputs/
 测试图/
+Crypto/
+pytz/
+volcengine/
+tmp_*.py

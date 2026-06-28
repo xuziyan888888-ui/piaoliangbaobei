@@ -1,6 +1,7 @@
 import base64
 import io
 from pathlib import Path
+from urllib import request
 
 from PIL import Image, ImageOps
 
@@ -40,6 +41,9 @@ def normalize_image_input(value: str) -> tuple[str, str]:
 def load_image_bytes(value: str) -> bytes:
     if is_local_file(value):
         return Path(value).read_bytes()
+    if is_http_url(value):
+        with request.urlopen(value, timeout=120) as resp:
+            return resp.read()
     if not is_http_url(value) and not is_data_url(value):
         path = Path(value)
         if path.suffix:

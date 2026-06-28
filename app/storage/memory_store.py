@@ -4,7 +4,12 @@ import threading
 from pathlib import Path
 
 from app.models.job import JobRecord
-from app.models.pipeline import CandidateRecord, PreprocessResult, ReferenceParseResult
+from app.models.pipeline import (
+    CandidateRecord,
+    GenerationControlBundle,
+    PreprocessResult,
+    ReferenceParseResult,
+)
 
 
 class SQLiteStore:
@@ -54,6 +59,15 @@ class SQLiteStore:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS reference_parse_results (
+                    job_id TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS control_bundles (
                     job_id TEXT PRIMARY KEY,
                     payload_json TEXT NOT NULL,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -147,6 +161,15 @@ class SQLiteStore:
         if payload is None:
             return None
         return ReferenceParseResult.model_validate(payload)
+
+    def save_control_bundle(self, job_id: str, bundle: GenerationControlBundle) -> None:
+        self._save_single_payload("control_bundles", job_id, bundle.model_dump(mode="json"))
+
+    def get_control_bundle(self, job_id: str) -> GenerationControlBundle | None:
+        payload = self._get_single_payload("control_bundles", job_id)
+        if payload is None:
+            return None
+        return GenerationControlBundle.model_validate(payload)
 
     def _save_single_payload(self, table: str, job_id: str, payload_dict: dict) -> None:
         payload = json.dumps(payload_dict, ensure_ascii=False)

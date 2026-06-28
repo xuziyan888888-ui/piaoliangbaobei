@@ -10,7 +10,12 @@ from volcengine.visual.VisualService import VisualService
 
 from app.config import settings
 from app.models.job import JobRecord
-from app.models.pipeline import CandidateResult, PreprocessResult, ReferenceParseResult
+from app.models.pipeline import (
+    CandidateResult,
+    GenerationControlBundle,
+    GenerationStrengthControls,
+    ReferenceParseResult,
+)
 from app.utils.images import is_http_url, load_image_bytes, normalize_image_pair_to_base64
 
 
@@ -21,18 +26,19 @@ class GenericHTTPImageClient:
     def build_payload(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
         candidate_index: int,
         stage_context: StageContext | None = None,
     ) -> dict[str, Any]:
         stage_context = stage_context or {}
-        source_image = stage_context.get("source_image", job.source_image)
+        source_image = stage_context.get("source_image", control_bundle.source_image)
         edit_target = stage_context.get("edit_target", job.mode)
+        active_controls = self._resolve_controls(control_bundle, stage_context)
         active_edit_mask = (
-            preprocess.editable_hair_mask
+            control_bundle.editable_hair_mask
             if edit_target == "hair_only"
-            else preprocess.editable_makeup_mask
+            else control_bundle.editable_makeup_mask
         )
         return {
             "job_id": job.job_id,
@@ -40,38 +46,52 @@ class GenericHTTPImageClient:
             "model": settings.local_inpaint.model_name,
             "mode": job.mode,
             "source_image": source_image,
-            "reference_image": job.reference_image,
-            "preserve_accessories": job.preserve_accessories,
+            "reference_image": control_bundle.reference_image,
+            "preserve_accessories": active_controls.preserve_accessories,
+            "pipeline_variant": control_bundle.pipeline_variant,
+            "delivery_mode": control_bundle.delivery_mode,
             "stage": self._build_stage_payload(job, stage_context),
-            "controls": {
-                "makeup_strength": job.makeup_strength,
-                "hairstyle_strength": job.hairstyle_strength,
-                "identity_lock_strength": job.identity_lock_strength,
-            },
+            "controls": active_controls.model_dump(mode="json"),
             "masks": {
-                "id_mask": preprocess.id_mask.model_dump(mode="json"),
-                "style_mask": preprocess.style_mask.model_dump(mode="json"),
-                "accessory_mask": preprocess.accessory_mask.model_dump(mode="json"),
-                "editable_hair_mask": preprocess.editable_hair_mask.model_dump(mode="json"),
-                "editable_makeup_mask": preprocess.editable_makeup_mask.model_dump(mode="json"),
-                "face_lock_mask": preprocess.face_lock_mask.model_dump(mode="json"),
+                "id_mask": control_bundle.id_mask.model_dump(mode="json"),
+                "style_mask": control_bundle.style_mask.model_dump(mode="json"),
+                "accessory_mask": control_bundle.accessory_mask.model_dump(mode="json"),
+                "editable_hair_mask": control_bundle.editable_hair_mask.model_dump(mode="json"),
+                "editable_makeup_mask": control_bundle.editable_makeup_mask.model_dump(mode="json"),
+                "face_lock_mask": control_bundle.face_lock_mask.model_dump(mode="json"),
+                "feature_lock_mask": control_bundle.feature_lock_mask.model_dump(mode="json"),
+                "contour_lock_mask": control_bundle.contour_lock_mask.model_dump(mode="json"),
                 "active_edit_mask": active_edit_mask.model_dump(mode="json"),
             },
-            "preprocess": {
-                "face_bbox": preprocess.face_bbox.model_dump(mode="json"),
-                "pose": preprocess.pose.model_dump(mode="json"),
-                "accessory_tags": preprocess.accessory_tags,
-                "quality_flags": preprocess.quality_flags,
+            "source_structure": {
+                "face_bbox": control_bundle.face_bbox.model_dump(mode="json"),
+                "pose": control_bundle.pose.model_dump(mode="json"),
+                "landmarks_106": [point.model_dump(mode="json") for point in control_bundle.landmarks_106],
+                "face_mesh": control_bundle.face_mesh.model_dump(mode="json"),
             },
+            "quality_gate": control_bundle.quality_gate.model_dump(mode="json"),
+            "identity_embedding": control_bundle.identity_embedding.model_dump(mode="json"),
+            "capability_profile": (
+                control_bundle.capability_profile.model_dump(mode="json")
+                if control_bundle.capability_profile
+                else None
+            ),
+            "region_gating_policy": (
+                control_bundle.region_gating_policy.model_dump(mode="json")
+                if control_bundle.region_gating_policy
+                else None
+            ),
             "reference_features": reference.model_dump(mode="json"),
+            "reference_region_assets": reference.region_assets.model_dump(mode="json"),
         }
 
     def generate_candidates(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
         stage_context: StageContext | None = None,
+        pipeline_type: str = "local_inpaint",
     ) -> list[CandidateResult]:
         endpoint = settings.local_inpaint.endpoint
         headers = {"Content-Type": "application/json"}
@@ -82,7 +102,7 @@ class GenericHTTPImageClient:
         for idx in range(job.candidate_count):
             payload = self.build_payload(
                 job,
-                preprocess,
+                control_bundle,
                 reference,
                 idx,
                 stage_context=stage_context,
@@ -98,6 +118,7 @@ class GenericHTTPImageClient:
                     idx,
                     data,
                     stage_context=stage_context,
+                    pipeline_type=pipeline_type,
                 )
             )
         return results
@@ -108,6 +129,7 @@ class GenericHTTPImageClient:
         candidate_index: int,
         data: dict[str, Any],
         stage_context: StageContext | None = None,
+        pipeline_type: str = "local_inpaint",
     ) -> CandidateResult:
         image_url = None
         metadata: dict[str, Any] = {"provider_mode": "generic_http"}
@@ -128,7 +150,7 @@ class GenericHTTPImageClient:
         metadata["stage_context"] = stage_context or {}
         return CandidateResult(
             candidate_id=f"{job_id}_local_{candidate_index}",
-            pipeline_type="local_inpaint",
+            pipeline_type=pipeline_type,
             image_url=image_url,
             metadata=metadata,
         )
@@ -145,6 +167,8 @@ class GenericHTTPImageClient:
             "stage_index": stage_context.get("stage_index", 0),
             "parent_candidate_id": stage_context.get("parent_candidate_id"),
             "source_stage_candidate_id": stage_context.get("source_stage_candidate_id"),
+            "control_overrides": stage_context.get("control_overrides"),
+            "region_gating_policy": stage_context.get("region_gating_policy"),
         }
 
 
@@ -159,15 +183,16 @@ class ArkVisualClient:
     def generate_candidates(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
         stage_context: StageContext | None = None,
+        pipeline_type: str = "local_inpaint",
     ) -> list[CandidateResult]:
         results: list[CandidateResult] = []
         for idx in range(job.candidate_count):
             submit_form = self._build_submit_form(
                 job,
-                preprocess,
+                control_bundle,
                 reference,
                 idx,
                 stage_context=stage_context,
@@ -185,6 +210,7 @@ class ArkVisualClient:
                     submit_form,
                     result_resp,
                     stage_context=stage_context,
+                    pipeline_type=pipeline_type,
                 )
             )
         return results
@@ -192,12 +218,13 @@ class ArkVisualClient:
     def generate_mainline_candidates(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
+        pipeline_type: str = "ark_native_control_mainline",
     ) -> list[CandidateResult]:
         results: list[CandidateResult] = []
         for idx in range(job.candidate_count):
-            submit_form = self._build_mainline_submit_form(job, preprocess, reference, idx)
+            submit_form = self._build_mainline_submit_form(job, control_bundle, reference, idx)
             submit_resp = self._service.cv_json_api(self._resolve_mainline_submit_action(), submit_form)
             task_id = self._extract_task_id(submit_resp)
             if not task_id:
@@ -216,8 +243,12 @@ class ArkVisualClient:
                     task_id,
                     submit_form,
                     result_resp,
-                    pipeline_type="ark_complete_mainline",
-                    provider_mode="ark_http_mainline",
+                    pipeline_type=pipeline_type,
+                    provider_mode=(
+                        "ark_http_mainline_native"
+                        if pipeline_type == "ark_native_control_mainline"
+                        else "ark_http_mainline_hybrid_base"
+                    ),
                 )
             )
         return results
@@ -225,13 +256,20 @@ class ArkVisualClient:
     def _build_submit_form(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
         candidate_index: int,
         stage_context: StageContext | None = None,
     ) -> dict[str, Any]:
         stage_context = stage_context or {}
-        prompt = self._build_prompt(reference, job, stage_context=stage_context)
+        active_controls = self._resolve_controls(control_bundle, stage_context)
+        prompt = self._build_prompt(
+            reference,
+            job,
+            control_bundle,
+            active_controls,
+            stage_context=stage_context,
+        )
         req_key = settings.ark_http.inpaint_model or settings.local_inpaint.model_name
         form: dict[str, Any] = {
             "req_key": req_key,
@@ -244,12 +282,12 @@ class ArkVisualClient:
             },
         }
 
-        source_image = stage_context.get("source_image", job.source_image)
+        source_image = stage_context.get("source_image", control_bundle.source_image)
         edit_target = stage_context.get("edit_target", job.mode)
         active_edit_mask = (
-            preprocess.editable_hair_mask.uri
+            control_bundle.editable_hair_mask.uri
             if edit_target == "hair_only"
-            else preprocess.editable_makeup_mask.uri
+            else control_bundle.editable_makeup_mask.uri
         )
 
         image_urls: list[str] = []
@@ -275,7 +313,9 @@ class ArkVisualClient:
             "candidate_index": candidate_index,
             "mode": job.mode,
             "source_image": source_image,
-            "reference_image": job.reference_image,
+            "reference_image": control_bundle.reference_image,
+            "pipeline_variant": control_bundle.pipeline_variant,
+            "delivery_mode": control_bundle.delivery_mode,
             "stage": {
                 "name": stage_context.get("stage_name", job.mode),
                 "edit_target": edit_target,
@@ -283,22 +323,35 @@ class ArkVisualClient:
                 "stage_index": stage_context.get("stage_index", 0),
                 "parent_candidate_id": stage_context.get("parent_candidate_id"),
                 "source_stage_candidate_id": stage_context.get("source_stage_candidate_id"),
+                "control_overrides": stage_context.get("control_overrides"),
             },
-            "controls": {
-                "makeup_strength": job.makeup_strength,
-                "hairstyle_strength": job.hairstyle_strength,
-                "identity_lock_strength": job.identity_lock_strength,
-            },
+            "controls": active_controls.model_dump(mode="json"),
             "masks": {
-                "id_mask": preprocess.id_mask.uri,
-                "style_mask": preprocess.style_mask.uri,
-                "accessory_mask": preprocess.accessory_mask.uri,
-                "editable_hair_mask": preprocess.editable_hair_mask.uri,
-                "editable_makeup_mask": preprocess.editable_makeup_mask.uri,
-                "face_lock_mask": preprocess.face_lock_mask.uri,
+                "id_mask": control_bundle.id_mask.uri,
+                "style_mask": control_bundle.style_mask.uri,
+                "accessory_mask": control_bundle.accessory_mask.uri,
+                "editable_hair_mask": control_bundle.editable_hair_mask.uri,
+                "editable_makeup_mask": control_bundle.editable_makeup_mask.uri,
+                "face_lock_mask": control_bundle.face_lock_mask.uri,
+                "feature_lock_mask": control_bundle.feature_lock_mask.uri,
+                "contour_lock_mask": control_bundle.contour_lock_mask.uri,
                 "active_edit_mask": active_edit_mask,
             },
+            "source_structure": {
+                "face_bbox": control_bundle.face_bbox.model_dump(mode="json"),
+                "pose": control_bundle.pose.model_dump(mode="json"),
+                "landmarks_106": [point.model_dump(mode="json") for point in control_bundle.landmarks_106],
+                "face_mesh": control_bundle.face_mesh.model_dump(mode="json"),
+            },
+            "identity_embedding": control_bundle.identity_embedding.model_dump(mode="json"),
+            "quality_gate": control_bundle.quality_gate.model_dump(mode="json"),
+            "region_gating_policy": (
+                control_bundle.region_gating_policy.model_dump(mode="json")
+                if control_bundle.region_gating_policy
+                else None
+            ),
             "reference_features": reference.model_dump(mode="json"),
+            "reference_region_assets": reference.region_assets.model_dump(mode="json"),
             "inpaint_transport": {
                 "image_slot_1": "source_image",
                 "image_slot_2": "active_edit_mask",
@@ -310,11 +363,11 @@ class ArkVisualClient:
     def _build_mainline_submit_form(
         self,
         job: JobRecord,
-        preprocess: PreprocessResult,
+        control_bundle: GenerationControlBundle,
         reference: ReferenceParseResult,
         candidate_index: int,
     ) -> dict[str, Any]:
-        prompt = self._build_mainline_prompt(job, reference)
+        prompt = self._build_mainline_prompt(job, reference, control_bundle)
         form: dict[str, Any] = {
             "req_key": settings.ark_http.model,
             "prompt": prompt,
@@ -326,8 +379,8 @@ class ArkVisualClient:
             },
         }
 
-        source_image = job.source_image
-        reference_image = job.reference_image
+        source_image = control_bundle.source_image
+        reference_image = control_bundle.reference_image
         source_remote = is_http_url(source_image)
         reference_remote = is_http_url(reference_image)
         if source_remote and reference_remote:
@@ -342,28 +395,39 @@ class ArkVisualClient:
             "mode": job.mode,
             "source_image": source_image,
             "reference_image": reference_image,
-            "controls": {
-                "makeup_strength": job.makeup_strength,
-                "hairstyle_strength": job.hairstyle_strength,
-                "identity_lock_strength": job.identity_lock_strength,
-                "preserve_accessories": job.preserve_accessories,
-            },
-            "preprocess": {
-                "face_bbox": preprocess.face_bbox.model_dump(mode="json"),
-                "pose": preprocess.pose.model_dump(mode="json"),
-                "accessory_tags": preprocess.accessory_tags,
-                "quality_flags": preprocess.quality_flags,
-                "id_embedding_preview": preprocess.id_embedding[:16],
-            },
+            "pipeline_variant": control_bundle.pipeline_variant,
+            "delivery_mode": control_bundle.delivery_mode,
+            "controls": control_bundle.controls.model_dump(mode="json"),
             "masks": {
-                "id_mask": preprocess.id_mask.uri,
-                "style_mask": preprocess.style_mask.uri,
-                "accessory_mask": preprocess.accessory_mask.uri,
-                "editable_hair_mask": preprocess.editable_hair_mask.uri,
-                "editable_makeup_mask": preprocess.editable_makeup_mask.uri,
-                "face_lock_mask": preprocess.face_lock_mask.uri,
+                "id_mask": control_bundle.id_mask.uri,
+                "style_mask": control_bundle.style_mask.uri,
+                "accessory_mask": control_bundle.accessory_mask.uri,
+                "editable_hair_mask": control_bundle.editable_hair_mask.uri,
+                "editable_makeup_mask": control_bundle.editable_makeup_mask.uri,
+                "face_lock_mask": control_bundle.face_lock_mask.uri,
+                "feature_lock_mask": control_bundle.feature_lock_mask.uri,
+                "contour_lock_mask": control_bundle.contour_lock_mask.uri,
             },
+            "source_structure": {
+                "face_bbox": control_bundle.face_bbox.model_dump(mode="json"),
+                "pose": control_bundle.pose.model_dump(mode="json"),
+                "landmarks_106": [point.model_dump(mode="json") for point in control_bundle.landmarks_106],
+                "face_mesh": control_bundle.face_mesh.model_dump(mode="json"),
+            },
+            "identity_embedding": control_bundle.identity_embedding.model_dump(mode="json"),
+            "quality_gate": control_bundle.quality_gate.model_dump(mode="json"),
+            "region_gating_policy": (
+                control_bundle.region_gating_policy.model_dump(mode="json")
+                if control_bundle.region_gating_policy
+                else None
+            ),
+            "capability_profile": (
+                control_bundle.capability_profile.model_dump(mode="json")
+                if control_bundle.capability_profile
+                else None
+            ),
             "reference_features": reference.model_dump(mode="json"),
+            "reference_region_assets": reference.region_assets.model_dump(mode="json"),
             "mainline_transport": {
                 "image_slot_1": "source_image",
                 "image_slot_2": "reference_image",
@@ -378,6 +442,8 @@ class ArkVisualClient:
         self,
         reference: ReferenceParseResult,
         job: JobRecord,
+        control_bundle: GenerationControlBundle,
+        active_controls: GenerationStrengthControls,
         stage_context: StageContext | None = None,
     ) -> str:
         stage_context = stage_context or {}
@@ -394,12 +460,14 @@ class ArkVisualClient:
             "Preserve the source person's identity, face shape, eyes, nose, mouth, skin tone base, and age impression.",
             "Lock the face and all accessories. Do not inherit the reference person's facial identity.",
             "Preserve glasses, headband, earrings, and non-edit clothing edges.",
+            self._build_region_gate_text(control_bundle),
         ]
 
         if edit_target == "hair_only":
             parts.extend(
                 [
                     "Edit only the hair region. Keep facial makeup and face geometry unchanged.",
+                    "Do not redraw eyes, nose, lips, brows, eyelids, cheeks, jawline, or skin texture.",
                     "Transfer only hairstyle structure, hairline, bangs, side locks, hair texture, and hair color from the reference.",
                     "Hair structure: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}".format(
                         primary=hair.primary_style,
@@ -425,13 +493,22 @@ class ArkVisualClient:
                         gap=bangs.gap_ratio,
                     ),
                     "Do not modify lipstick, blush, eyeliner, eyeshadow, contour, highlight, brows, or foundation in this stage.",
-                    "Hairstyle transfer strength {:.2f}".format(job.hairstyle_strength),
+                    "Hairstyle transfer strength {:.2f}".format(active_controls.hairstyle_strength),
                 ]
             )
+            if hair.style == "updo" or "updo" in hair.primary_style:
+                parts.append(
+                    "Hair shape must remain a lifted bun or updo silhouette on the crown, not loose hair."
+                )
+            if bangs.exists:
+                parts.append(
+                    "Keep front bangs covering part of the forehead at eyebrow-to-eye length, with light face-framing side locks when visible in the reference."
+                )
         elif edit_target == "makeup_only":
             parts.extend(
                 [
                     "Edit only the makeup region. Keep the incoming hairstyle and the face geometry unchanged.",
+                    "Do not redraw eye shape, eyebrow shape, nose contour, lip outline geometry, cheeks shape, jawline, or face identity.",
                     "Transfer only makeup semantics from the reference: base, blush, contour, highlight, brows, eyeshadow, eyeliner, lashes, aegyo sal, lips.",
                     "Base makeup: finish {finish}, intensity {intensity:.2f}, coverage {coverage:.2f}, brightness shift {shift:.2f}, glow {glow:.2f}, powderiness {powder:.2f}".format(
                         finish=makeup.base_makeup.finish,
@@ -476,13 +553,14 @@ class ArkVisualClient:
                         bite=makeup.lips.bite_effect,
                     ),
                     "Do not change hairstyle structure or hair color in this stage.",
-                    "Makeup transfer strength {:.2f}".format(job.makeup_strength),
+                    "Makeup transfer strength {:.2f}".format(active_controls.makeup_strength),
                 ]
             )
         else:
             parts.extend(
                 [
                     "Transfer only the reference hairstyle and makeup while preserving identity.",
+                    "Do not replace facial identity, eye shape, nose shape, lip geometry, cheek volume, or jawline.",
                     "Hair structure: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}".format(
                         primary=hair.primary_style,
                         secondary=hair.secondary_style,
@@ -509,13 +587,14 @@ class ArkVisualClient:
             parts.append("Key traits: " + ", ".join(reference.normalized_prompt_tokens))
         if reference.consistency_flags:
             parts.append("Consistency hints: " + ", ".join(reference.consistency_flags))
-        parts.append("Identity lock strength {:.2f}".format(job.identity_lock_strength))
+        parts.append("Identity lock strength {:.2f}".format(active_controls.identity_lock_strength))
         return ". ".join(parts)
 
     def _build_mainline_prompt(
         self,
         job: JobRecord,
         reference: ReferenceParseResult,
+        control_bundle: GenerationControlBundle,
     ) -> str:
         hair = reference.hair_features
         bangs = reference.bangs
@@ -526,8 +605,10 @@ class ArkVisualClient:
             "Use the first input image as the source identity image and the second input image as the hairstyle and makeup reference image.",
             "Preserve the source person's facial identity, face shape, eyes, nose, mouth, age impression, and core facial structure.",
             "Transfer the reference hairstyle and makeup strongly, while keeping the output as the same person from the source image.",
+            "Do not redraw the source person's eye shape, eyebrow geometry, nose bridge, lip contour, cheek volume, or jawline.",
             "Preserve glasses, headband, earrings, and source accessories.",
             "Do not inherit the reference person's face, body identity, clothing, or background.",
+            self._build_region_gate_text(control_bundle),
             "Hairstyle target: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}, texture {texture}, finish {finish}, color {color}, crown volume {crown:.2f}, side volume {side:.2f}, hairline exposure {hairline:.2f}.".format(
                 primary=hair.primary_style,
                 secondary=hair.secondary_style,
@@ -565,12 +646,29 @@ class ArkVisualClient:
                 job.makeup_strength,
                 job.identity_lock_strength,
             ),
+            "Use the provided source face mesh, face bounding box, and landmark guidance as identity-preserving structural anchors when available.",
+            "Use the provided reference region assets for hair, bangs, eyes, brows, lips, cheeks, and complexion as structured style evidence rather than inheriting the reference identity.",
             "Overall texture: photo style {style}, vibe {vibe}, caption {caption}.".format(
                 style=texture.photo_style,
                 vibe=texture.overall_vibe,
                 caption=reference.style_caption,
             ),
         ]
+        if job.identity_mode == "visual_identity":
+            parts.extend(
+                [
+                    "Keep the source person's forehead width, eye spacing, glasses bridge position, nose width, philtrum, mouth width, and chin outline recognizably the same person.",
+                    "Allow cosmetic beautification and skin refinement, but keep the source facial geometry visually recognizable at a glance.",
+                ]
+            )
+        if hair.style == "updo" or "updo" in hair.primary_style:
+            parts.append(
+                "Important hairstyle constraint: keep a lifted bun or updo silhouette on the crown, not loose down hair."
+            )
+        if bangs.exists:
+            parts.append(
+                "Important bangs constraint: keep visible front bangs across the forehead around eyebrow-to-eye length, plus thin face-framing side locks when present. Do not expose the whole forehead."
+            )
         if reference.normalized_prompt_tokens:
             parts.append("Key traits: " + ", ".join(reference.normalized_prompt_tokens))
         if reference.negative_constraints:
@@ -578,6 +676,44 @@ class ArkVisualClient:
         if reference.consistency_flags:
             parts.append("Consistency hints: " + ", ".join(reference.consistency_flags))
         return " ".join(parts)
+
+    def _resolve_controls(
+        self,
+        control_bundle: GenerationControlBundle,
+        stage_context: StageContext | None = None,
+    ) -> GenerationStrengthControls:
+        stage_context = stage_context or {}
+        overrides = stage_context.get("control_overrides")
+        if not isinstance(overrides, dict):
+            return control_bundle.controls
+        return control_bundle.controls.model_copy(update=overrides)
+
+    def _build_region_gate_text(self, control_bundle: GenerationControlBundle) -> str:
+        policy = control_bundle.region_gating_policy
+        if policy is None:
+            return (
+                "Regional gate target: keep face and accessories source-dominant, keep hair and makeup "
+                "style-dominant, and never let reference identity overwrite source facial structure."
+            )
+        return (
+            "Regional gate target: face core {face_s:.2f}/{face_t:.2f} source-style, "
+            "feature lock {feature_s:.2f}/{feature_t:.2f}, contour {contour_s:.2f}/{contour_t:.2f}, "
+            "accessory {acc_s:.2f}/{acc_t:.2f}, hair {hair_s:.2f}/{hair_t:.2f}, makeup {makeup_s:.2f}/{makeup_t:.2f}. "
+            "Interpret source-dominant regions as identity-preserve zones and style-dominant regions as transfer zones."
+        ).format(
+            face_s=policy.face_core.source_weight,
+            face_t=policy.face_core.style_weight,
+            feature_s=policy.feature_lock.source_weight,
+            feature_t=policy.feature_lock.style_weight,
+            contour_s=policy.contour.source_weight,
+            contour_t=policy.contour.style_weight,
+            acc_s=policy.accessory.source_weight,
+            acc_t=policy.accessory.style_weight,
+            hair_s=policy.hair.source_weight,
+            hair_t=policy.hair.style_weight,
+            makeup_s=policy.makeup.source_weight,
+            makeup_t=policy.makeup.style_weight,
+        )
 
     def _normalize_source_and_mask_to_base64(
         self,
@@ -689,8 +825,10 @@ class ArkVisualClient:
         if not image_url:
             raise ValueError("Ark get_result response missing output image")
 
+        candidate_prefix = "global" if pipeline_type.startswith("ark_") or pipeline_type == "global_reference" else "local"
+
         return CandidateResult(
-            candidate_id=f"{job_id}_{'global' if pipeline_type == 'ark_complete_mainline' else 'local'}_{candidate_index}",
+            candidate_id=f"{job_id}_{candidate_prefix}_{candidate_index}",
             pipeline_type=pipeline_type,
             image_url=image_url,
             metadata={

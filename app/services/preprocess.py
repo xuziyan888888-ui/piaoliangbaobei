@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +13,16 @@ try:
 except Exception:
     cv2 = None
 
-from app.models.pipeline import FaceBBox, LandmarkPoint, MaskAsset, Pose, PreprocessResult
+from app.models.pipeline import (
+    FaceBBox,
+    FaceMeshAsset,
+    IdentityEmbeddingAsset,
+    LandmarkPoint,
+    MaskAsset,
+    Pose,
+    PreprocessResult,
+)
+from app.services.identity import face_identity_service
 from app.services.reference_parser import reference_parser_service
 from app.utils.images import load_image_bytes
 
@@ -22,11 +32,16 @@ class PreprocessService:
         root = Path(__file__).resolve().parents[2]
         self._mask_dir = root / "outputs" / "preprocess_masks"
         self._mask_dir.mkdir(parents=True, exist_ok=True)
+        self._mesh_dir = root / "outputs" / "preprocess_meshes"
+        self._mesh_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, source_image: str) -> PreprocessResult:
         image = Image.open(io.BytesIO(load_image_bytes(source_image))).convert("RGB")
         geometry = reference_parser_service._estimate_face_geometry(image)
-        detection = reference_parser_service._detect_landmarks(image, geometry)
+        identity_observation = face_identity_service.analyze(source_image)
+        detection = self._build_detection_from_identity(identity_observation)
+        if detection is None:
+            detection = reference_parser_service._detect_landmarks(image, geometry)
         raw_masks = reference_parser_service._build_region_masks(image, geometry)
 
         landmark_masks = None
@@ -40,6 +55,7 @@ class PreprocessService:
         else:
             landmarks = self._fallback_landmarks(geometry)
             face_bbox = self._face_bbox_from_geometry(geometry, image.size)
+        pose = self._estimate_pose(landmarks, face_bbox, image.size)
 
         face_shape_mask = landmark_masks["face"] if landmark_masks else raw_masks["face"]
         component_masks = landmark_masks or raw_masks
@@ -53,31 +69,74 @@ class PreprocessService:
             detection,
         )
         makeup_mask = self._build_makeup_mask(component_masks, face_shape_mask, hair_mask, accessory_mask)
+        feature_lock_mask = self._build_feature_lock_mask(component_masks, face_shape_mask, accessory_mask)
+        contour_lock_mask = self._build_contour_lock_mask(
+            component_masks,
+            face_shape_mask,
+            hair_mask,
+            makeup_mask,
+            accessory_mask,
+            geometry,
+        )
         face_lock_mask = self._build_face_lock_mask(face_shape_mask, hair_mask, makeup_mask, accessory_mask)
         style_mask = self._union_masks([hair_mask, makeup_mask])
-        id_mask = self._union_masks([face_lock_mask, accessory_mask])
+        id_mask = self._union_masks([face_lock_mask, feature_lock_mask, contour_lock_mask, accessory_mask])
 
         prefix = self._mask_prefix(source_image)
         hair_path = self._save_mask(hair_mask, f"{prefix}_source_hair_edit_mask.png")
         makeup_path = self._save_mask(makeup_mask, f"{prefix}_source_makeup_edit_mask.png")
         face_lock_path = self._save_mask(face_lock_mask, f"{prefix}_source_face_lock_mask.png")
+        feature_lock_path = self._save_mask(feature_lock_mask, f"{prefix}_source_feature_lock_mask.png")
+        contour_lock_path = self._save_mask(contour_lock_mask, f"{prefix}_source_contour_lock_mask.png")
         accessory_path = self._save_mask(accessory_mask, f"{prefix}_source_accessory_mask.png")
         style_path = self._save_mask(style_mask, f"{prefix}_source_style_mask.png")
         id_path = self._save_mask(id_mask, f"{prefix}_source_id_mask.png")
 
         quality_flags = ["frontal_face", "strong_identity_lock_recommended", "two_stage_local_edit_ready"]
+        identity_asset = None
         if detection is not None:
             quality_flags.append("landmark_driven_masks")
         else:
             quality_flags.append("heuristic_masks")
+        if self._mask_fill_ratio(face_lock_mask) >= 0.12:
+            quality_flags.append("broad_face_lock_mask")
+        if self._mask_fill_ratio(feature_lock_mask) >= 0.05:
+            quality_flags.append("feature_lock_mask_ready")
+        if self._mask_fill_ratio(contour_lock_mask) >= 0.03:
+            quality_flags.append("contour_lock_mask_ready")
+        if self._mask_fill_ratio(hair_mask) >= 0.08:
+            quality_flags.append("expanded_hair_edit_mask")
+        if self._mask_fill_ratio(makeup_mask) <= 0.09:
+            quality_flags.append("conservative_makeup_mask")
+        if identity_observation is not None:
+            quality_flags.append("insightface_identity_embedding")
+            identity_asset = IdentityEmbeddingAsset(
+                vector=[float(v) for v in identity_observation.embedding.tolist()],
+                provider=identity_observation.provider,
+                dimension=int(identity_observation.embedding.shape[0]),
+                source="source_image",
+                confidence=round(identity_observation.det_score, 4),
+            )
 
         accessory_tags = []
         if self._mask_fill_ratio(accessory_mask) > 0.005:
             accessory_tags.append("glasses_or_face_accessory")
+        face_mesh = self._build_face_mesh_asset(
+            prefix=prefix,
+            landmarks=landmarks,
+            face_bbox=face_bbox,
+            pose=pose,
+            image_size=image.size,
+        )
+        if face_mesh.vertex_count >= 8:
+            quality_flags.append("face_mesh_asset_ready")
+        if abs(pose.yaw) <= 18 and abs(pose.pitch) <= 18:
+            quality_flags.append("near_frontal_pose")
 
         return PreprocessResult(
+            source_image_ref=source_image,
             face_bbox=face_bbox,
-            pose=Pose(yaw=0.0, pitch=0.0, roll=0.0),
+            pose=pose,
             landmarks_106=landmarks,
             id_mask=MaskAsset(kind="id_mask", uri=id_path, width=image.size[0], height=image.size[1]),
             style_mask=MaskAsset(kind="style_mask", uri=style_path, width=image.size[0], height=image.size[1]),
@@ -105,10 +164,53 @@ class PreprocessService:
                 width=image.size[0],
                 height=image.size[1],
             ),
-            id_embedding=self._pseudo_identity_embedding(face_lock_mask),
+            feature_lock_mask=MaskAsset(
+                kind="feature_lock_mask",
+                uri=feature_lock_path,
+                width=image.size[0],
+                height=image.size[1],
+            ),
+            contour_lock_mask=MaskAsset(
+                kind="contour_lock_mask",
+                uri=contour_lock_path,
+                width=image.size[0],
+                height=image.size[1],
+            ),
+            id_embedding=identity_asset
+            or IdentityEmbeddingAsset(
+                vector=self._pseudo_identity_embedding(face_lock_mask),
+                provider="pseudo_preview",
+                dimension=32,
+                source="face_lock_mask",
+                confidence=0.1,
+            ),
+            face_mesh=face_mesh,
             accessory_tags=accessory_tags,
             quality_flags=quality_flags,
         )
+
+    def _build_detection_from_identity(self, observation) -> object | None:
+        if observation is None:
+            return None
+        points = None
+        if observation.landmarks_106 is not None and observation.landmarks_106.size:
+            points = observation.landmarks_106
+        elif observation.landmarks_5 is not None and observation.landmarks_5.size:
+            points = observation.landmarks_5
+        if points is None:
+            return None
+        if np.asarray(points).shape[0] < 68:
+            return None
+
+        x1, y1, x2, y2 = observation.bbox
+        face_rect = (x1, y1, max(1, x2 - x1), max(1, y2 - y1))
+
+        class Detection:
+            def __init__(self, rect, pts):
+                self.face_rect = rect
+                self.points = pts
+
+        return Detection(face_rect, np.asarray(points, dtype=np.float32))
 
     def _mask_prefix(self, source_image: str) -> str:
         digest = hashlib.md5(source_image.encode("utf-8")).hexdigest()[:12]
@@ -117,6 +219,11 @@ class PreprocessService:
     def _save_mask(self, mask: Image.Image, filename: str) -> str:
         path = self._mask_dir / filename
         mask.convert("L").save(path)
+        return str(path)
+
+    def _save_json(self, payload: dict[str, object], filename: str) -> str:
+        path = self._mesh_dir / filename
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return str(path)
 
     def _face_bbox_from_detection(
@@ -153,6 +260,78 @@ class PreprocessService:
             )
             for rx, ry in rects
         ]
+
+    def _estimate_pose(
+        self,
+        landmarks: list[LandmarkPoint],
+        face_bbox: FaceBBox,
+        image_size: tuple[int, int],
+    ) -> Pose:
+        if not landmarks:
+            return Pose()
+
+        points = np.array([[point.x, point.y] for point in landmarks], dtype=np.float32)
+        xs = points[:, 0]
+        ys = points[:, 1]
+        width = max(1.0, float(face_bbox.x2 - face_bbox.x1))
+        height = max(1.0, float(face_bbox.y2 - face_bbox.y1))
+        center_x = (face_bbox.x1 + face_bbox.x2) / 2.0
+        center_y = (face_bbox.y1 + face_bbox.y2) / 2.0
+
+        left_mean = float(xs[xs <= center_x].mean()) if np.any(xs <= center_x) else float(xs.mean())
+        right_mean = float(xs[xs > center_x].mean()) if np.any(xs > center_x) else float(xs.mean())
+        upper_mean = float(ys[ys <= center_y].mean()) if np.any(ys <= center_y) else float(ys.mean())
+        lower_mean = float(ys[ys > center_y].mean()) if np.any(ys > center_y) else float(ys.mean())
+
+        yaw = ((center_x - (left_mean + right_mean) / 2.0) / width) * 120.0
+        pitch = (((upper_mean + lower_mean) / 2.0 - center_y) / height) * 120.0
+
+        width_px = max(1.0, float(image_size[0]))
+        height_px = max(1.0, float(image_size[1]))
+        left_idx = int(np.argmin(xs))
+        right_idx = int(np.argmax(xs))
+        roll = float(np.degrees(np.arctan2((ys[right_idx] - ys[left_idx]) / height_px, (xs[right_idx] - xs[left_idx]) / width_px)))
+
+        return Pose(
+            yaw=round(float(max(-35.0, min(35.0, yaw))), 2),
+            pitch=round(float(max(-25.0, min(25.0, pitch))), 2),
+            roll=round(float(max(-25.0, min(25.0, roll))), 2),
+        )
+
+    def _build_face_mesh_asset(
+        self,
+        *,
+        prefix: str,
+        landmarks: list[LandmarkPoint],
+        face_bbox: FaceBBox,
+        pose: Pose,
+        image_size: tuple[int, int],
+    ) -> FaceMeshAsset:
+        width = max(1.0, float(image_size[0]))
+        height = max(1.0, float(image_size[1]))
+        coverage_ratio = ((face_bbox.x2 - face_bbox.x1) * (face_bbox.y2 - face_bbox.y1)) / max(1.0, width * height)
+        mesh_payload = {
+            "coordinate_system": "image_normalized",
+            "image_size": {"width": int(width), "height": int(height)},
+            "face_bbox": face_bbox.model_dump(mode="json"),
+            "pose": pose.model_dump(mode="json"),
+            "landmark_count": len(landmarks),
+            "vertices": [
+                {
+                    "x": round(point.x / width, 6),
+                    "y": round(point.y / height, 6),
+                }
+                for point in landmarks
+            ],
+        }
+        mesh_path = self._save_json(mesh_payload, f"{prefix}_face_mesh.json")
+        return FaceMeshAsset(
+            uri=mesh_path,
+            vertex_count=len(landmarks),
+            coordinate_system="image_normalized",
+            source_landmark_count=len(landmarks),
+            coverage_ratio=round(float(max(0.0, min(1.0, coverage_ratio))), 4),
+        )
 
     def _build_accessory_mask(self, image: Image.Image, masks: dict[str, Image.Image], geometry) -> Image.Image:
         size = image.size
@@ -292,6 +471,15 @@ class PreprocessService:
         head_rect = reference_parser_service._rect_from_geom(geometry, -1.08, -1.08, 1.08, 0.62)
         head_limit = reference_parser_service._rect_mask(hair_mask.size, head_rect)
         refined = ImageChops.multiply(hair_mask, head_limit)
+        crown_limit = reference_parser_service._rect_mask(
+            hair_mask.size,
+            reference_parser_service._rect_from_geom(geometry, -0.96, -1.10, 0.96, -0.12),
+        )
+        crown_recovery = ImageChops.multiply(
+            reference_parser_service._dilate_mask(refined, 6),
+            crown_limit,
+        )
+        refined = ImageChops.lighter(refined, crown_recovery)
         refined = ImageChops.subtract(refined, reference_parser_service._dilate_mask(face_mask, 2))
         refined = ImageChops.subtract(refined, reference_parser_service._dilate_mask(accessory_mask, 2))
         refined = reference_parser_service._erode_mask(refined, 1)
@@ -304,24 +492,24 @@ class PreprocessService:
         hair_mask: Image.Image,
         accessory_mask: Image.Image,
     ) -> Image.Image:
+        eye_makeup = self._binarize(
+            reference_parser_service._erode_mask(masks["eye_band"], 1),
+            threshold=32,
+        )
+        under_eye = self._binarize(
+            reference_parser_service._erode_mask(masks["under_eye"], 1),
+            threshold=24,
+        )
         makeup_regions = [
-            masks["brow_left"],
-            masks["brow_right"],
-            masks["eye_band"],
-            masks["liner_left"],
-            masks["liner_right"],
+            eye_makeup,
+            under_eye,
             masks["under_eye"],
             masks["blush_left"],
             masks["blush_right"],
             masks["lips"],
-            masks["nose_bridge"],
-            masks["forehead_highlight"],
-            masks["nose_tip"],
-            masks["contour_left"],
-            masks["contour_right"],
         ]
         merged = self._union_masks(makeup_regions)
-        merged = ImageChops.multiply(merged, reference_parser_service._dilate_mask(face_mask, 1))
+        merged = ImageChops.multiply(merged, reference_parser_service._erode_mask(face_mask, 1))
         merged = reference_parser_service._dilate_mask(merged, 1)
         merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(hair_mask, 2))
         merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(accessory_mask, 2))
@@ -334,11 +522,75 @@ class PreprocessService:
         makeup_mask: Image.Image,
         accessory_mask: Image.Image,
     ) -> Image.Image:
-        base_face = reference_parser_service._dilate_mask(face_mask, 2)
-        editable = self._union_masks([hair_mask, makeup_mask])
-        locked = ImageChops.subtract(base_face, reference_parser_service._dilate_mask(editable, 2))
+        base_face = reference_parser_service._dilate_mask(face_mask, 3)
+        locked = ImageChops.subtract(base_face, reference_parser_service._dilate_mask(hair_mask, 2))
+        locked = ImageChops.lighter(locked, reference_parser_service._erode_mask(face_mask, 1))
+        locked = ImageChops.subtract(locked, reference_parser_service._dilate_mask(makeup_mask, 1))
         locked = self._union_masks([locked, accessory_mask])
         return self._binarize(locked)
+
+    def _build_feature_lock_mask(
+        self,
+        masks: dict[str, Image.Image],
+        face_mask: Image.Image,
+        accessory_mask: Image.Image,
+    ) -> Image.Image:
+        tight_eye_band = self._binarize(
+            reference_parser_service._erode_mask(masks["eye_band"], 1),
+            threshold=40,
+        )
+        nose_core = self._binarize(
+            reference_parser_service._dilate_mask(masks["nose_bridge"], 1),
+            threshold=20,
+        )
+        lips_core = self._binarize(
+            reference_parser_service._erode_mask(masks["lips"], 1),
+            threshold=32,
+        )
+        merged = self._union_masks(
+            [
+                tight_eye_band,
+                masks["brow_left"],
+                masks["brow_right"],
+                nose_core,
+                lips_core,
+            ]
+        )
+        merged = ImageChops.multiply(merged, reference_parser_service._erode_mask(face_mask, 1))
+        merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(accessory_mask, 1))
+        return self._binarize(merged)
+
+    def _build_contour_lock_mask(
+        self,
+        masks: dict[str, Image.Image],
+        face_mask: Image.Image,
+        hair_mask: Image.Image,
+        makeup_mask: Image.Image,
+        accessory_mask: Image.Image,
+        geometry,
+    ) -> Image.Image:
+        face_outer = ImageChops.subtract(
+            reference_parser_service._dilate_mask(face_mask, 1),
+            reference_parser_service._erode_mask(face_mask, 6),
+        )
+        chin_rect = reference_parser_service._rect_from_geom(geometry, -0.44, 0.38, 0.44, 1.00)
+        left_cheek_rect = reference_parser_service._rect_from_geom(geometry, -0.92, 0.02, -0.26, 0.70)
+        right_cheek_rect = reference_parser_service._rect_from_geom(geometry, 0.26, 0.02, 0.92, 0.70)
+        chin_mask = reference_parser_service._rect_mask(face_mask.size, chin_rect)
+        cheek_mask = self._union_masks(
+            [
+                reference_parser_service._rect_mask(face_mask.size, left_cheek_rect),
+                reference_parser_service._rect_mask(face_mask.size, right_cheek_rect),
+                masks["contour_left"],
+                masks["contour_right"],
+            ]
+        )
+        merged = self._union_masks([face_outer, chin_mask, cheek_mask])
+        merged = ImageChops.multiply(merged, reference_parser_service._dilate_mask(face_mask, 1))
+        merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(hair_mask, 2))
+        merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(makeup_mask, 1))
+        merged = ImageChops.subtract(merged, reference_parser_service._dilate_mask(accessory_mask, 1))
+        return self._binarize(merged)
 
     def _build_landmark_component_masks(self, size: tuple[int, int], geometry, detection) -> dict[str, Image.Image]:
         pts = detection.points

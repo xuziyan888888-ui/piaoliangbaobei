@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import colorsys
+import hashlib
 import io
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
@@ -28,6 +30,8 @@ from app.models.pipeline import (
     HighlightFeatures,
     LipFeatures,
     MakeupFeatures,
+    ReferenceRegionAssets,
+    RegionImageAsset,
     RegionMaskSet,
     ReferenceParseResult,
     TextureFeatures,
@@ -95,16 +99,26 @@ class ReferenceParserService:
     def __init__(self) -> None:
         self._facemark = None
         self._facemark_load_attempted = False
+        root = Path(__file__).resolve().parents[2]
+        self._region_mask_dir = root / "outputs" / "reference_region_masks"
+        self._region_mask_dir.mkdir(parents=True, exist_ok=True)
+        self._region_asset_dir = root / "outputs" / "reference_region_assets"
+        self._region_asset_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, reference_image: str) -> ReferenceParseResult:
         image = Image.open(io.BytesIO(load_image_bytes(reference_image))).convert("RGB")
-        regions = self._extract_regions(image)
+        prefix = self._artifact_prefix(reference_image)
+        geometry = self._estimate_face_geometry(image)
+        masks = self._build_region_masks(image, geometry)
+        region_masks = self._persist_region_masks(masks, image.size, prefix)
+        regions = self._extract_regions(image, geometry, masks, region_masks)
         hair = self._parse_hair_structure(image, regions)
         bangs = self._parse_bangs_structure(regions, hair)
         hair = self._refine_hair_structure(hair, bangs, regions)
         makeup = self._parse_makeup_attributes(image, regions)
         texture = self._parse_texture_attributes(regions)
         confidence = self._aggregate_confidence(hair, bangs, makeup, texture)
+        region_assets = self._persist_region_assets(regions, prefix, hair, bangs)
         style_caption, consistency_flags, confidence_overrides = self._merge_vlm_summary(
             hair=hair,
             bangs=bangs,
@@ -114,7 +128,8 @@ class ReferenceParserService:
         )
 
         return ReferenceParseResult(
-            region_masks=regions.region_masks,
+            region_masks=region_masks,
+            region_assets=region_assets,
             hair_features=hair,
             bangs=bangs,
             makeup_features=makeup,
@@ -131,30 +146,13 @@ class ReferenceParserService:
             parse_confidence=confidence,
         )
 
-    def _extract_regions(self, image: Image.Image) -> ParsedRegions:
-        geometry = self._estimate_face_geometry(image)
-        masks = self._build_region_masks(image, geometry)
-
-        region_masks = RegionMaskSet(
-            hair="derived://region/hair",
-            bangs="derived://region/bangs",
-            hairline="derived://region/hairline",
-            brow_left="derived://region/brow_left",
-            brow_right="derived://region/brow_right",
-            upper_eyelid_left="derived://region/upper_eyelid_left",
-            upper_eyelid_right="derived://region/upper_eyelid_right",
-            lower_eyelid_left="derived://region/lower_eyelid_left",
-            lower_eyelid_right="derived://region/lower_eyelid_right",
-            eyelashes_upper="derived://region/eyelashes_upper",
-            eyelashes_lower="derived://region/eyelashes_lower",
-            lips="derived://region/lips",
-            blush_left="derived://region/blush_left",
-            blush_right="derived://region/blush_right",
-            nose_highlight="derived://region/nose_highlight",
-            contour_left="derived://region/contour_left",
-            contour_right="derived://region/contour_right",
-        )
-
+    def _extract_regions(
+        self,
+        image: Image.Image,
+        geometry: FaceGeometry,
+        masks: dict[str, Image.Image],
+        region_masks: RegionMaskSet,
+    ) -> ParsedRegions:
         left_strip_rect = self._rect_from_geom(geometry, -1.55, -0.20, -0.72, 1.10)
         right_strip_rect = self._rect_from_geom(geometry, 0.72, -0.20, 1.55, 1.10)
         upper_band_rect = self._rect_from_geom(geometry, -1.15, -1.25, 1.15, -0.52)
@@ -217,6 +215,87 @@ class ReferenceParserService:
             nose_tip=self._extract_masked_region(image, masks["nose_tip"], nose_tip_rect),
             top_bg=self._extract_masked_region(image, masks["background_top"], top_bg_rect),
             side_bg=self._extract_masked_region(image, masks["background_side"], side_bg_rect),
+        )
+
+    def _artifact_prefix(self, reference_image: str) -> str:
+        return hashlib.md5(reference_image.encode("utf-8")).hexdigest()[:12]
+
+    def _persist_region_masks(
+        self,
+        masks: dict[str, Image.Image],
+        image_size: tuple[int, int],
+        prefix: str,
+    ) -> RegionMaskSet:
+        return RegionMaskSet(
+            hair=self._save_mask(masks["hair"], f"{prefix}_hair_mask.png"),
+            bangs=self._save_mask(masks["bangs"], f"{prefix}_bangs_mask.png"),
+            hairline=self._save_mask(masks["forehead_highlight"], f"{prefix}_hairline_mask.png"),
+            brow_left=self._save_mask(masks["brow_left"], f"{prefix}_brow_left_mask.png"),
+            brow_right=self._save_mask(masks["brow_right"], f"{prefix}_brow_right_mask.png"),
+            upper_eyelid_left=self._save_mask(masks["liner_left"], f"{prefix}_upper_eyelid_left_mask.png"),
+            upper_eyelid_right=self._save_mask(masks["liner_right"], f"{prefix}_upper_eyelid_right_mask.png"),
+            lower_eyelid_left=self._save_mask(masks["under_eye"], f"{prefix}_lower_eyelid_left_mask.png"),
+            lower_eyelid_right=self._save_mask(masks["under_eye"], f"{prefix}_lower_eyelid_right_mask.png"),
+            eyelashes_upper=self._save_mask(masks["eye_band"], f"{prefix}_eyelashes_upper_mask.png"),
+            eyelashes_lower=self._save_mask(masks["under_eye"], f"{prefix}_eyelashes_lower_mask.png"),
+            lips=self._save_mask(masks["lips"], f"{prefix}_lips_mask.png"),
+            blush_left=self._save_mask(masks["blush_left"], f"{prefix}_blush_left_mask.png"),
+            blush_right=self._save_mask(masks["blush_right"], f"{prefix}_blush_right_mask.png"),
+            nose_highlight=self._save_mask(masks["nose_bridge"], f"{prefix}_nose_highlight_mask.png"),
+            contour_left=self._save_mask(masks["contour_left"], f"{prefix}_contour_left_mask.png"),
+            contour_right=self._save_mask(masks["contour_right"], f"{prefix}_contour_right_mask.png"),
+        )
+
+    def _persist_region_assets(
+        self,
+        regions: ParsedRegions,
+        prefix: str,
+        hair: HairFeatures,
+        bangs: BangsFeatures,
+    ) -> ReferenceRegionAssets:
+        if hair.style == "updo" or "updo" in hair.primary_style:
+            hair_patch = self._blend_regions(regions.upper_band, regions.crown_band)
+            if hair.side_locks.exists:
+                hair_patch = self._blend_regions(hair_patch, regions.right_mid)
+        else:
+            hair_patch = regions.right_mid
+        bangs_patch = (
+            self._blend_regions(regions.forehead_band, self._blend_regions(regions.left_forehead, regions.right_forehead))
+            if bangs.exists
+            else regions.forehead_band
+        )
+        eyes_patch = self._blend_regions(regions.eye_band, self._blend_regions(regions.liner_left, regions.liner_right))
+        brows_patch = self._blend_regions(regions.left_brow, regions.right_brow)
+        cheeks_patch = self._blend_regions(regions.left_cheek, regions.right_cheek)
+        complexion_patch = self._blend_regions(regions.face_center, regions.forehead_band)
+        return ReferenceRegionAssets(
+            hair_patch=self._save_region_asset(hair_patch, "hair_patch", prefix),
+            bangs_patch=self._save_region_asset(bangs_patch, "bangs_patch", prefix),
+            eyes_patch=self._save_region_asset(eyes_patch, "eyes_patch", prefix),
+            brows_patch=self._save_region_asset(brows_patch, "brows_patch", prefix),
+            lips_patch=self._save_region_asset(regions.lips, "lips_patch", prefix),
+            cheeks_patch=self._save_region_asset(cheeks_patch, "cheeks_patch", prefix),
+            complexion_patch=self._save_region_asset(complexion_patch, "complexion_patch", prefix),
+        )
+
+    def _save_mask(self, mask: Image.Image, filename: str) -> str:
+        path = self._region_mask_dir / filename
+        mask.convert("L").save(path)
+        return str(path)
+
+    def _save_region_asset(
+        self,
+        image: Image.Image,
+        kind: str,
+        prefix: str,
+    ) -> RegionImageAsset:
+        path = self._region_asset_dir / f"{prefix}_{kind}.png"
+        image.convert("RGB").save(path)
+        return RegionImageAsset(
+            kind=kind,
+            uri=str(path),
+            width=image.size[0],
+            height=image.size[1],
         )
 
     def _build_region_masks_heuristic(self, image: Image.Image, geometry: FaceGeometry) -> dict[str, Image.Image]:
@@ -296,21 +375,40 @@ class ReferenceParserService:
             and lower_dark <= 0.14
             and sleekness >= 0.80
         )
+        updo_with_bangs_candidate = (
+            crown_dark >= 0.30
+            and upper_dark >= 0.36
+            and lower_dark <= 0.12
+            and self._dark_ratio(regions.forehead_band) >= 0.40
+            and self._dark_ratio(regions.center_forehead) >= 0.60
+            and max(left_dark, right_dark) <= 0.22
+            and volume_side <= 0.22
+        )
         if slicked_back_candidate:
             style = "updo"
             updo_type = "tight_bun"
             style_conf = 0.86
             parting = "none_or_natural_back"
             texture = "straight_sleek"
+        elif updo_with_bangs_candidate:
+            style = "updo"
+            updo_type = "soft_bun"
+            style_conf = 0.88
+            parting = "middle"
+            parting_conf = max(parting_conf, 0.74)
+            volume_crown = max(volume_crown, 0.68)
+            volume_side = max(volume_side, 0.14)
         elif hairline_exposure >= 0.76 and volume_side <= 0.24 and lower_dark <= 0.18 and upper_dark >= 0.24:
             style = "updo"
             updo_type = "bun_or_ponytail"
             style_conf = 0.74
             parting = "none_or_natural_back"
 
-        side_lock_exists = style == "down" and (left_dark > 0.12 or right_dark > 0.12)
+        side_lock_exists = (style == "down" and (left_dark > 0.12 or right_dark > 0.12)) or (
+            updo_with_bangs_candidate and (left_dark > 0.06 or right_dark > 0.10)
+        )
         side_lock_length = "medium" if side_lock_exists and length != "short" else "none"
-        side_lock_intensity = 0.52 if side_lock_exists else 0.0
+        side_lock_intensity = 0.58 if updo_with_bangs_candidate and side_lock_exists else (0.52 if side_lock_exists else 0.0)
         if style == "updo":
             hairline_exposure = max(hairline_exposure, 0.58)
 
@@ -321,6 +419,10 @@ class ReferenceParserService:
             primary_style = "slicked_back_updo"
             secondary_style = "tight_bun"
             finish = "sleek"
+        elif updo_with_bangs_candidate:
+            primary_style = "updo_with_bangs"
+            secondary_style = "soft_bun"
+            finish = "natural"
         elif style == "updo" and sleekness > 0.62:
             primary_style = "slicked_back_updo"
             secondary_style = "tight_bun"
@@ -404,6 +506,27 @@ class ReferenceParserService:
         bangs: BangsFeatures,
         regions: ParsedRegions,
     ) -> HairFeatures:
+        if (
+            bangs.exists
+            and self._dark_ratio(regions.forehead_band) >= 0.48
+            and self._dark_ratio(regions.center_forehead) >= 0.68
+            and self._dark_ratio(regions.lower_band) <= 0.10
+            and self._dark_ratio(regions.crown_band) >= 0.30
+            and hair.volume_side <= 0.24
+        ):
+            hair.style = "updo"
+            hair.updo_type = "soft_bun"
+            hair.primary_style = "updo_with_bangs"
+            hair.secondary_style = "soft_bun"
+            hair.parting = "middle"
+            hair.finish = "natural"
+            hair.confidence = max(hair.confidence, 0.88)
+            hair.volume_crown = max(hair.volume_crown, 0.68)
+            hair.side_locks.exists = True
+            hair.side_locks.length = "medium"
+            hair.side_locks.intensity = max(hair.side_locks.intensity, 0.58)
+            hair.side_locks.curl = max(hair.side_locks.curl, 0.24)
+            return hair
         if (
             not bangs.exists
             and hair.hairline_exposure >= 0.82
