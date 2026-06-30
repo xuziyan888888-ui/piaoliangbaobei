@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference4",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference4.jpg",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User confirmed the eyeshadow reads as light pink rather than brown.",
+  "expected": {
+    "hair": {
+      "style": "down",
+      "updo_type": "none",
+      "primary_style": "down",
+      "parting": "side_7_3",
+      "surface_finish": "sleek_polished",
+      "bun_silhouette": "none",
+      "color": "black_brown",
+      "color_temperature": "neutral"
+    },
+    "bangs": {
+      "exists": true,
+      "type": "airy_side_bangs"
+    },
+    "side_locks": {
+      "exists": false
+    },
+    "eyebrow": {
+      "shape": "soft_arch",
+      "color": "deep_brown",
+      "tone": null
+    },
+    "eyeshadow": {
+      "upper_lid_color": "soft_pink",
+      "lower_lid_color": "soft_pink",
+      "outer_corner_color": "soft_pink",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "thin_lifted",
+      "color": "black"
+    },
+    "lips": {
+      "color": "light_rose",
+      "finish": "glossy",
+      "temperature": "cool"
+    },
+    "base_makeup": {
+      "finish": "matte"
+    }
+  }
+}

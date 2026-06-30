@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference7",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference7.jpg",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User confirmed true red lips, orange-red blush, pink-brown upper lid, light brown lower lid, and defined separated upper lashes.",
+  "expected": {
+    "hair": {
+      "style": "updo",
+      "updo_type": "tight_bun",
+      "primary_style": "slicked_back_updo",
+      "parting": "none_or_natural_back",
+      "surface_finish": "sleek_polished",
+      "bun_silhouette": "tight_crown_bun",
+      "color": "dark_brown",
+      "color_temperature": "neutral"
+    },
+    "bangs": {
+      "exists": false,
+      "type": "none"
+    },
+    "side_locks": {
+      "exists": false
+    },
+    "eyebrow": {
+      "shape": "straight_soft_arch",
+      "color": "deep_brown",
+      "tone": "neutral"
+    },
+    "eyeshadow": {
+      "upper_lid_color": "pink_brown",
+      "lower_lid_color": "light_brown",
+      "outer_corner_color": "pink_brown",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "inner_defined",
+      "color": "black"
+    },
+    "lips": {
+      "color": "true_red",
+      "finish": "matte",
+      "temperature": "neutral"
+    },
+    "base_makeup": {
+      "finish": "matte"
+    }
+  }
+}

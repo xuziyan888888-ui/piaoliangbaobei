@@ -85,6 +85,12 @@ class ParsedRegions:
     left_brow: Image.Image
     right_brow: Image.Image
     eye_band: Image.Image
+    upper_lid_left: Image.Image
+    upper_lid_right: Image.Image
+    lower_lid_left: Image.Image
+    lower_lid_right: Image.Image
+    outer_corner_left: Image.Image
+    outer_corner_right: Image.Image
     liner_left: Image.Image
     liner_right: Image.Image
     under_eye: Image.Image
@@ -173,6 +179,12 @@ class ReferenceParserService:
         left_brow_rect = self._rect_from_geom(geometry, -0.70, -0.26, -0.18, -0.02)
         right_brow_rect = self._rect_from_geom(geometry, 0.18, -0.26, 0.70, -0.02)
         eye_band_rect = self._rect_from_geom(geometry, -0.74, -0.04, 0.74, 0.34)
+        upper_lid_left_rect = self._rect_from_geom(geometry, -0.68, -0.06, -0.16, 0.14)
+        upper_lid_right_rect = self._rect_from_geom(geometry, 0.16, -0.06, 0.68, 0.14)
+        lower_lid_left_rect = self._rect_from_geom(geometry, -0.64, 0.12, -0.16, 0.34)
+        lower_lid_right_rect = self._rect_from_geom(geometry, 0.16, 0.12, 0.64, 0.34)
+        outer_corner_left_rect = self._rect_from_geom(geometry, -0.72, 0.00, -0.42, 0.22)
+        outer_corner_right_rect = self._rect_from_geom(geometry, 0.42, 0.00, 0.72, 0.22)
         liner_left_rect = self._rect_from_geom(geometry, -0.68, 0.02, -0.16, 0.20)
         liner_right_rect = self._rect_from_geom(geometry, 0.16, 0.02, 0.68, 0.20)
         under_eye_rect = self._rect_from_geom(geometry, -0.62, 0.20, 0.62, 0.44)
@@ -207,6 +219,12 @@ class ReferenceParserService:
             left_brow=self._extract_masked_region(image, masks["brow_left"], left_brow_rect),
             right_brow=self._extract_masked_region(image, masks["brow_right"], right_brow_rect),
             eye_band=self._extract_masked_region(image, masks["eye_band"], eye_band_rect),
+            upper_lid_left=self._extract_masked_region(image, masks["upper_lid_left"], upper_lid_left_rect),
+            upper_lid_right=self._extract_masked_region(image, masks["upper_lid_right"], upper_lid_right_rect),
+            lower_lid_left=self._extract_masked_region(image, masks["lower_lid_left"], lower_lid_left_rect),
+            lower_lid_right=self._extract_masked_region(image, masks["lower_lid_right"], lower_lid_right_rect),
+            outer_corner_left=self._extract_masked_region(image, masks["outer_corner_left"], outer_corner_left_rect),
+            outer_corner_right=self._extract_masked_region(image, masks["outer_corner_right"], outer_corner_right_rect),
             liner_left=self._extract_masked_region(image, masks["liner_left"], liner_left_rect),
             liner_right=self._extract_masked_region(image, masks["liner_right"], liner_right_rect),
             under_eye=self._extract_masked_region(image, masks["under_eye"], under_eye_rect),
@@ -232,10 +250,14 @@ class ReferenceParserService:
             hairline=self._save_mask(masks["forehead_highlight"], f"{prefix}_hairline_mask.png"),
             brow_left=self._save_mask(masks["brow_left"], f"{prefix}_brow_left_mask.png"),
             brow_right=self._save_mask(masks["brow_right"], f"{prefix}_brow_right_mask.png"),
-            upper_eyelid_left=self._save_mask(masks["liner_left"], f"{prefix}_upper_eyelid_left_mask.png"),
-            upper_eyelid_right=self._save_mask(masks["liner_right"], f"{prefix}_upper_eyelid_right_mask.png"),
-            lower_eyelid_left=self._save_mask(masks["under_eye"], f"{prefix}_lower_eyelid_left_mask.png"),
-            lower_eyelid_right=self._save_mask(masks["under_eye"], f"{prefix}_lower_eyelid_right_mask.png"),
+            upper_eyelid_left=self._save_mask(masks["upper_lid_left"], f"{prefix}_upper_eyelid_left_mask.png"),
+            upper_eyelid_right=self._save_mask(masks["upper_lid_right"], f"{prefix}_upper_eyelid_right_mask.png"),
+            lower_eyelid_left=self._save_mask(masks["lower_lid_left"], f"{prefix}_lower_eyelid_left_mask.png"),
+            lower_eyelid_right=self._save_mask(masks["lower_lid_right"], f"{prefix}_lower_eyelid_right_mask.png"),
+            outer_corner_left=self._save_mask(masks["outer_corner_left"], f"{prefix}_outer_corner_left_mask.png"),
+            outer_corner_right=self._save_mask(masks["outer_corner_right"], f"{prefix}_outer_corner_right_mask.png"),
+            aegyo_sal_left=self._save_mask(masks["lower_lid_left"], f"{prefix}_aegyo_sal_left_mask.png"),
+            aegyo_sal_right=self._save_mask(masks["lower_lid_right"], f"{prefix}_aegyo_sal_right_mask.png"),
             eyelashes_upper=self._save_mask(masks["eye_band"], f"{prefix}_eyelashes_upper_mask.png"),
             eyelashes_lower=self._save_mask(masks["under_eye"], f"{prefix}_eyelashes_lower_mask.png"),
             lips=self._save_mask(masks["lips"], f"{prefix}_lips_mask.png"),
@@ -265,6 +287,9 @@ class ReferenceParserService:
             else regions.forehead_band
         )
         eyes_patch = self._blend_regions(regions.eye_band, self._blend_regions(regions.liner_left, regions.liner_right))
+        upper_lid_patch = self._blend_regions(regions.upper_lid_left, regions.upper_lid_right)
+        lower_lid_patch = self._blend_regions(regions.lower_lid_left, regions.lower_lid_right)
+        outer_corner_patch = self._blend_regions(regions.outer_corner_left, regions.outer_corner_right)
         brows_patch = self._blend_regions(regions.left_brow, regions.right_brow)
         cheeks_patch = self._blend_regions(regions.left_cheek, regions.right_cheek)
         complexion_patch = self._blend_regions(regions.face_center, regions.forehead_band)
@@ -272,6 +297,9 @@ class ReferenceParserService:
             hair_patch=self._save_region_asset(hair_patch, "hair_patch", prefix),
             bangs_patch=self._save_region_asset(bangs_patch, "bangs_patch", prefix),
             eyes_patch=self._save_region_asset(eyes_patch, "eyes_patch", prefix),
+            upper_lid_patch=self._save_region_asset(upper_lid_patch, "upper_lid_patch", prefix),
+            lower_lid_patch=self._save_region_asset(lower_lid_patch, "lower_lid_patch", prefix),
+            outer_corner_patch=self._save_region_asset(outer_corner_patch, "outer_corner_patch", prefix),
             brows_patch=self._save_region_asset(brows_patch, "brows_patch", prefix),
             lips_patch=self._save_region_asset(regions.lips, "lips_patch", prefix),
             cheeks_patch=self._save_region_asset(cheeks_patch, "cheeks_patch", prefix),
@@ -299,13 +327,7 @@ class ReferenceParserService:
         )
 
     def _build_region_masks_heuristic(self, image: Image.Image, geometry: FaceGeometry) -> dict[str, Image.Image]:
-        detection = self._detect_landmarks(image, geometry)
-        if detection is not None:
-            try:
-                return self._build_region_masks_from_landmarks(image, geometry, detection)
-            except Exception:
-                pass
-        return self._build_region_masks_heuristic(image, geometry)
+        return self._build_region_masks(image, geometry)
 
     def _parse_hair_structure(self, image: Image.Image, regions: ParsedRegions) -> HairFeatures:
         left_dark = self._dark_ratio(regions.left_strip)
@@ -366,6 +388,8 @@ class ReferenceParserService:
             hex=self._rgb_to_hex(hair_rgb),
             confidence=0.78,
         )
+        hair_color_temperature = self._classify_color_temperature(hair_rgb, role="hair")
+        hair_color_depth = self._classify_color_depth(hair_rgb, role="hair")
 
         sleekness = round(max(0.10, min(0.95, 1.0 - volume_side * 0.75)), 2)
 
@@ -432,6 +456,13 @@ class ReferenceParserService:
         elif texture in {"soft_wave", "wavy"}:
             primary_style = "down"
         gloss = round(max(0.05, min(0.90, 0.25 + self._highlight_ratio(regions.right_mid) * 1.1)), 2)
+        surface_finish = self._classify_hair_surface_finish(texture, gloss, sleekness, volume_side)
+        bun_silhouette = self._classify_bun_silhouette(
+            style=style,
+            updo_type=updo_type,
+            volume_crown=volume_crown,
+            sleekness=sleekness,
+        )
 
         return HairFeatures(
             style=style if style_conf >= 0.5 else "unknown",
@@ -440,6 +471,8 @@ class ReferenceParserService:
             parting=parting if parting_conf >= 0.60 else "unclear",
             texture=texture,
             color=hair_color,
+            color_temperature=hair_color_temperature,
+            color_depth=hair_color_depth,
             volume_crown=round(volume_crown, 2),
             volume_side=round(volume_side, 2),
             hairline_exposure=hairline_exposure,
@@ -452,6 +485,8 @@ class ReferenceParserService:
             primary_style=primary_style,
             secondary_style=secondary_style,
             finish=finish,
+            surface_finish=surface_finish,
+            bun_silhouette=bun_silhouette,
             gloss=gloss,
             sleekness=sleekness,
             confidence=round(style_conf, 2),
@@ -477,7 +512,19 @@ class ReferenceParserService:
 
         asymmetry = abs(left_dark - right_dark)
         gap_ratio = round(max(0.0, min(1.0, 1.0 - center_dark / max(forehead_dark, 0.001))), 2)
-        if hair.parting.startswith("side") and (gap_ratio > 0.08 or asymmetry > 0.05):
+        if asymmetry > 0.14 and hair.parting.startswith("side"):
+            bang_type = "side_swept_bangs"
+            density = 0.46
+        elif hair.parting.startswith("side") and (gap_ratio > 0.08 or asymmetry > 0.05):
+            bang_type = "airy_side_bangs"
+            density = 0.34
+        elif hair.primary_style == "updo_with_bangs" and asymmetry > 0.03:
+            bang_type = "airy_side_bangs"
+            density = 0.36
+        elif hair.primary_style == "updo_with_bangs" and hair.parting.startswith("side") and asymmetry > 0.02:
+            bang_type = "airy_side_bangs"
+            density = 0.36
+        elif hair.primary_style in {"half_up_half_down", "braided_pigtails"} and (gap_ratio > 0.18 or asymmetry > 0.04):
             bang_type = "airy_side_bangs"
             density = 0.34
         elif asymmetry > 0.10:
@@ -506,26 +553,104 @@ class ReferenceParserService:
         bangs: BangsFeatures,
         regions: ParsedRegions,
     ) -> HairFeatures:
+        left_strip_dark = self._dark_ratio(regions.left_strip)
+        right_strip_dark = self._dark_ratio(regions.right_strip)
+        upper_dark = self._dark_ratio(regions.upper_band)
+        lower_dark = self._dark_ratio(regions.lower_band)
+        crown_dark = self._dark_ratio(regions.crown_band)
+        forehead_dark = self._dark_ratio(regions.forehead_band)
+        center_dark = self._dark_ratio(regions.center_forehead)
+        left_forehead_dark = self._dark_ratio(regions.left_forehead)
+        right_forehead_dark = self._dark_ratio(regions.right_forehead)
+        left_top_dark = self._dark_ratio(regions.left_top)
+        right_top_dark = self._dark_ratio(regions.right_top)
+        subtle_side_part = (
+            bangs.type in {"airy_side_bangs", "side_swept_bangs"}
+            and (
+                abs(left_forehead_dark - right_forehead_dark) >= 0.03
+                or abs(left_top_dark - right_top_dark) >= 0.03
+                or abs(left_strip_dark - right_strip_dark) >= 0.06
+            )
+        )
         if (
             bangs.exists
-            and self._dark_ratio(regions.forehead_band) >= 0.48
-            and self._dark_ratio(regions.center_forehead) >= 0.68
-            and self._dark_ratio(regions.lower_band) <= 0.10
-            and self._dark_ratio(regions.crown_band) >= 0.30
+            and forehead_dark >= 0.48
+            and center_dark >= 0.68
+            and lower_dark <= 0.10
+            and crown_dark >= 0.30
             and hair.volume_side <= 0.24
         ):
             hair.style = "updo"
             hair.updo_type = "soft_bun"
             hair.primary_style = "updo_with_bangs"
             hair.secondary_style = "soft_bun"
-            hair.parting = "middle"
+            hair.parting = "side_6_4" if subtle_side_part else "middle"
             hair.finish = "natural"
+            hair.surface_finish = "soft_natural"
+            hair.bun_silhouette = "soft_crown_bun"
             hair.confidence = max(hair.confidence, 0.88)
             hair.volume_crown = max(hair.volume_crown, 0.68)
             hair.side_locks.exists = True
             hair.side_locks.length = "medium"
             hair.side_locks.intensity = max(hair.side_locks.intensity, 0.58)
             hair.side_locks.curl = max(hair.side_locks.curl, 0.24)
+            return hair
+        if (
+            bangs.exists
+            and hair.style == "down"
+            and upper_dark >= 0.54
+            and lower_dark <= 0.16
+            and crown_dark >= 0.52
+            and forehead_dark >= 0.40
+            and center_dark >= 0.46
+            and max(left_strip_dark, right_strip_dark) >= 0.55
+        ):
+            hair.style = "updo"
+            hair.updo_type = "soft_bun"
+            hair.primary_style = "updo_with_bangs"
+            hair.secondary_style = "soft_bun"
+            hair.parting = "side_6_4" if subtle_side_part else "middle"
+            hair.finish = "natural"
+            hair.surface_finish = "soft_natural"
+            hair.bun_silhouette = "soft_crown_bun"
+            hair.confidence = max(hair.confidence, 0.82)
+            hair.volume_crown = max(hair.volume_crown, 0.72)
+            hair.side_locks.exists = True
+            hair.side_locks.length = "medium"
+            hair.side_locks.intensity = max(hair.side_locks.intensity, 0.56)
+            return hair
+        if (
+            bangs.exists
+            and hair.style == "down"
+            and lower_dark >= 0.48
+            and upper_dark >= 0.38
+            and crown_dark >= 0.38
+            and center_dark >= 0.48
+            and abs(left_top_dark - right_top_dark) <= 0.03
+            and min(left_strip_dark, right_strip_dark) >= 0.50
+        ):
+            hair.primary_style = "half_up_half_down"
+            hair.secondary_style = "half_up"
+            hair.parting = "middle"
+            hair.finish = "natural"
+            hair.confidence = max(hair.confidence, 0.78)
+            return hair
+        if (
+            bangs.type == "airy_side_bangs"
+            and hair.style == "down"
+            and 0.18 <= lower_dark <= 0.30
+            and 0.30 <= upper_dark <= 0.42
+            and 0.28 <= crown_dark <= 0.40
+            and center_dark <= 0.34
+            and abs(left_strip_dark - right_strip_dark) >= 0.20
+            and max(left_strip_dark, right_strip_dark) >= 0.30
+        ):
+            hair.primary_style = "braided_pigtails"
+            hair.secondary_style = "braided_pigtails"
+            hair.parting = "middle"
+            hair.finish = "natural"
+            hair.surface_finish = "soft_natural"
+            hair.confidence = max(hair.confidence, 0.80)
             return hair
         if (
             not bangs.exists
@@ -540,6 +665,8 @@ class ReferenceParserService:
             hair.parting = "none_or_natural_back"
             hair.texture = "straight_sleek"
             hair.finish = "sleek"
+            hair.surface_finish = "sleek_polished"
+            hair.bun_silhouette = "tight_crown_bun"
             hair.confidence = max(hair.confidence, 0.86)
             hair.side_locks.exists = False
             hair.side_locks.length = "none"
@@ -556,17 +683,28 @@ class ReferenceParserService:
             hair.primary_style = "updo"
             hair.secondary_style = "bun_or_ponytail"
             hair.parting = "none_or_natural_back"
+            hair.surface_finish = "balanced_natural"
+            hair.bun_silhouette = "lifted_updo"
             hair.confidence = max(hair.confidence, 0.76)
         return hair
 
     def _parse_makeup_attributes(self, image: Image.Image, regions: ParsedRegions) -> MakeupFeatures:
         face_rgb = self._median_rgb(regions.face_center)
-        cheek_rgb = self._median_rgb(self._blend_regions(regions.left_cheek, regions.right_cheek))
-        lip_rgb = self._median_rgb(regions.lips)
+        cheek_mix = self._blend_regions(regions.left_cheek, regions.right_cheek)
+        cheek_rgb = self._median_rgb(cheek_mix)
+        lip_rgb = self._median_rgb_non_background(regions.lips)
         brow_mix = self._blend_regions(regions.left_brow, regions.right_brow)
-        brow_rgb = self._median_rgb(brow_mix)
-        eye_rgb = self._median_rgb(regions.eye_band)
-        under_eye_rgb = self._median_rgb(regions.under_eye)
+        brow_rgb = self._feature_rgb(brow_mix, role="brow")
+        upper_lid_mix = self._blend_regions(regions.upper_lid_left, regions.upper_lid_right)
+        lower_lid_mix = self._blend_regions(regions.lower_lid_left, regions.lower_lid_right)
+        outer_corner_mix = self._blend_regions(regions.outer_corner_left, regions.outer_corner_right)
+        eye_mix = self._blend_regions(upper_lid_mix, outer_corner_mix)
+        under_eye_mix = self._blend_regions(lower_lid_mix, regions.under_eye)
+        upper_lid_rgb = self._feature_rgb(upper_lid_mix, role="eyes")
+        lower_lid_rgb = self._feature_rgb(lower_lid_mix, role="eyes")
+        outer_corner_rgb = self._feature_rgb(outer_corner_mix, role="eyes")
+        eye_rgb = self._feature_rgb(eye_mix, role="eyes")
+        under_eye_rgb = self._median_rgb(under_eye_mix)
         nose_rgb = self._median_rgb(regions.nose_bridge)
 
         face_brightness = self._brightness(face_rgb)
@@ -576,12 +714,21 @@ class ReferenceParserService:
         face_evenness = min(0.96, max(0.20, 1.0 - self._channel_std(regions.face_center) / 95.0))
         lip_saturation = self._saturation(lip_rgb)
         blush_saturation = self._saturation(cheek_rgb)
+        upper_eye_saturation = self._saturation(upper_lid_rgb)
+        lower_eye_saturation = self._saturation(lower_lid_rgb)
+        outer_eye_saturation = self._saturation(outer_corner_rgb)
         eye_saturation = self._saturation(eye_rgb)
         brow_darkness = 1.0 - self._brightness(brow_rgb)
         brow_std = self._channel_std(brow_mix)
         liner_density = max(self._dark_ratio(regions.liner_left), self._dark_ratio(regions.liner_right))
-        under_eye_std = self._channel_std(regions.under_eye)
+        outer_corner_darkness = max(
+            self._dark_ratio(regions.outer_corner_left),
+            self._dark_ratio(regions.outer_corner_right),
+        )
+        under_eye_std = self._channel_std(under_eye_mix)
         lip_std = self._channel_std(regions.lips)
+        upper_shimmer = self._highlight_ratio(upper_lid_mix)
+        lower_shimmer = self._highlight_ratio(lower_lid_mix)
 
         base_finish = self._classify_skin_finish(regions.face_center)
         if (face_glow > 0.16 or nose_tip_glow > 0.55 or forehead_glow > 0.10) and face_evenness > 0.45:
@@ -591,12 +738,50 @@ class ReferenceParserService:
         brightness_shift = round(face_brightness - 0.62, 2)
         powderiness = round(max(0.04, 0.48 - face_glow * 0.55), 2)
 
-        blush_color = self._classify_makeup_color(cheek_rgb, role="blush")
-        lip_color = self._classify_makeup_color(lip_rgb, role="lips")
-        eye_color = self._classify_makeup_color(eye_rgb, role="eyes")
-        highlight_color = self._classify_makeup_color(under_eye_rgb, role="highlight")
-        contour_color = self._classify_makeup_color(nose_rgb, role="contour")
-        brow_color = self._classify_makeup_color(brow_rgb, role="brow")
+        blush_color = self._resolve_region_color(cheek_mix, cheek_rgb, role="blush")
+        lip_color = self._resolve_region_color(regions.lips, lip_rgb, role="lips")
+        upper_lid_color = self._resolve_region_color(upper_lid_mix, upper_lid_rgb, role="eyes")
+        lower_lid_color = self._resolve_region_color(lower_lid_mix, lower_lid_rgb, role="eyes")
+        outer_corner_color = self._resolve_region_color(outer_corner_mix, outer_corner_rgb, role="eyes")
+        upper_lid_color = self._refine_eye_color_label(upper_lid_color, upper_lid_rgb, zone="upper")
+        lower_lid_color = self._refine_eye_color_label(lower_lid_color, lower_lid_rgb, zone="lower")
+        outer_corner_color = self._refine_eye_color_label(outer_corner_color, outer_corner_rgb, zone="outer")
+        if upper_lid_color == "soft_pink":
+            if lower_lid_color in {"peach_brown", "pink_brown", "soft_beige_brown"} and lower_eye_saturation <= 0.24:
+                lower_lid_color = "warm_brown"
+            if outer_corner_color in {"peach_brown", "pink_brown", "soft_beige_brown"} and outer_eye_saturation <= 0.24:
+                outer_corner_color = "warm_brown"
+        green_family = {upper_lid_color, lower_lid_color, outer_corner_color}
+        if green_family & {"yellow_green", "olive_green"}:
+            propagated_green = (
+                "yellow_green"
+                if "yellow_green" in green_family
+                or (85 <= self._approx_hue(eye_rgb) < 145 and eye_saturation >= 0.14 and self._brightness(eye_rgb) >= 0.44)
+                else "olive_green"
+            )
+            if upper_lid_color in {"unknown", "soft_pink", "pink_brown", "light_brown"}:
+                upper_lid_color = propagated_green
+            if lower_lid_color == "olive_green" and propagated_green == "yellow_green":
+                lower_lid_color = propagated_green
+            if outer_corner_color == "olive_green" and propagated_green == "yellow_green":
+                outer_corner_color = propagated_green
+        highlight_color = self._resolve_region_color(under_eye_mix, under_eye_rgb, role="highlight")
+        contour_color = self._resolve_region_color(regions.nose_bridge, nose_rgb, role="contour")
+        brow_color = self._resolve_region_color(brow_mix, brow_rgb, role="brow")
+
+        main_eye_color = self._pick_first_known(upper_lid_color, outer_corner_color, lower_lid_color)
+        secondary_eye_color = self._pick_first_known(
+            outer_corner_color if outer_corner_color != main_eye_color else "unknown",
+            lower_lid_color if lower_lid_color != main_eye_color else "unknown",
+            self._classify_secondary_eye_color(eye_rgb) if eye_saturation >= 0.08 else "unknown",
+        )
+        lip_finish = self._classify_lip_finish(regions.lips, lip_rgb, face_glow)
+        lip_temperature = self._classify_color_temperature(lip_rgb, role="lips")
+        lip_lightness = self._classify_color_depth(lip_rgb, role="lips")
+        brow_tone = self._classify_color_temperature(brow_rgb, role="brow")
+        eyeshadow_finish = self._classify_eye_finish(upper_lid_mix, lower_lid_mix, outer_corner_mix)
+        lower_lid_defined = lower_lid_color != "unknown" or lower_shimmer > 0.18
+        aegyo_exists = lower_lid_defined and under_eye_std > 6
 
         return MakeupFeatures(
             base_makeup=BaseMakeupFeatures(
@@ -616,26 +801,26 @@ class ReferenceParserService:
                 placement="mid_cheek",
                 shape="soft_oval",
                 range=0.34,
-                intensity=round(max(0.18, min(0.88, blush_saturation + 0.12)), 2),
-                confidence=0.68,
+                intensity=round(max(0.10, min(0.88, blush_saturation + 0.10)), 2),
+                confidence=0.68 if blush_color != "unknown" else 0.42,
             ),
             contour=ContourFeatures(
                 color=contour_color,
                 nose_contour=round(max(0.08, min(0.78, (1.0 - self._brightness(nose_rgb)) * 0.8)), 2),
                 cheek_contour=round(max(0.06, min(0.74, (1.0 - self._brightness(cheek_rgb)) * 0.55)), 2),
                 jaw_contour=0.18,
-                intensity=round(max(0.10, min(0.68, (1.0 - self._brightness(nose_rgb)) * 0.65)), 2),
-                confidence=0.62,
+                intensity=round(max(0.08, min(0.68, (1.0 - self._brightness(nose_rgb)) * 0.65)), 2),
+                confidence=0.62 if contour_color != "unknown" else 0.38,
             ),
             highlight=HighlightFeatures(
                 color=highlight_color,
                 nose_highlight=round(max(0.10, min(0.78, face_glow + 0.12)), 2),
                 cheek_highlight=round(max(0.10, min(0.76, face_glow + 0.08)), 2),
-                under_eye_highlight=round(max(0.10, min(0.72, 0.26 + under_eye_std / 80.0)), 2),
+                under_eye_highlight=round(max(0.10, min(0.72, 0.22 + under_eye_std / 90.0)), 2),
                 forehead_highlight=round(max(0.08, min(0.72, forehead_glow + 0.10)), 2),
                 nose_tip_highlight=round(max(0.08, min(0.80, nose_tip_glow + 0.08)), 2),
                 intensity=round(max(0.10, min(0.80, face_glow + 0.10)), 2),
-                confidence=0.66,
+                confidence=0.66 if highlight_color != "unknown" else 0.40,
             ),
             eyebrow=EyebrowFeatures(
                 shape=(
@@ -644,33 +829,47 @@ class ReferenceParserService:
                     else ("soft_arch" if brow_darkness > 0.26 else "straight_soft")
                 ),
                 color=brow_color,
+                tone=brow_tone,
                 thickness=round(max(0.16, min(0.84, brow_darkness)), 2),
+                density=round(max(0.12, min(0.90, self._dark_ratio(brow_mix) * 1.2)), 2),
                 arch=round(max(0.10, min(0.72, 0.30 + brow_std / 80.0)), 2),
                 hair_texture=round(max(0.10, min(0.76, brow_std / 60.0)), 2),
                 intensity=round(max(0.18, min(0.90, brow_darkness + 0.14)), 2),
-                confidence=0.74,
+                confidence=0.74 if brow_color != "unknown" else 0.44,
             ),
             eyeliner=EyelinerFeatures(
-                color="black" if liner_density > 0.20 else "soft_brown",
-                style=(
-                    "thin_lifted"
-                    if 0.24 <= liner_density <= 0.40
-                    else ("micro_wing" if liner_density > 0.40 else "inner_defined")
+                color=(
+                    "black"
+                    if liner_density > 0.28
+                    else ("grey_brown" if brow_tone == "cool" else "soft_brown")
                 ),
-                length=round(max(0.12, min(0.88, 0.24 + liner_density * 1.4)), 2),
+                style=(
+                    "micro_wing"
+                    if outer_corner_darkness > 0.40 and liner_density > 0.24
+                    else ("thin_lifted" if outer_corner_darkness > 0.22 or 0.20 <= liner_density <= 0.40 else "inner_defined")
+                ),
+                length=round(max(0.12, min(0.88, 0.24 + max(liner_density, outer_corner_darkness) * 1.35)), 2),
                 thickness=round(max(0.08, min(0.72, 0.12 + liner_density * 0.9)), 2),
                 tail_direction="slightly_up",
-                intensity=round(max(0.10, min(0.92, 0.18 + liner_density * 1.6)), 2),
-                confidence=0.75,
+                intensity=round(max(0.08, min(0.92, 0.18 + liner_density * 1.6)), 2),
+                confidence=0.75 if liner_density > 0.08 else 0.45,
             ),
             eyeshadow=EyeshadowFeatures(
-                main_color=eye_color,
-                secondary_color=self._classify_secondary_eye_color(eye_rgb),
-                placement="upper_lid_outer_corner",
-                gradient="soft_gradient",
-                finish="satin" if eye_saturation > 0.18 else "matte",
-                intensity=round(max(0.12, min(0.82, eye_saturation + 0.10)), 2),
-                confidence=0.63,
+                main_color=main_eye_color,
+                secondary_color=secondary_eye_color,
+                upper_lid_color=upper_lid_color,
+                lower_lid_color=lower_lid_color,
+                outer_corner_color=outer_corner_color,
+                placement=(
+                    "upper_lid_and_outer_corner"
+                    if outer_corner_color != "unknown"
+                    else "upper_lid_soft_wash"
+                ),
+                gradient="soft_gradient" if secondary_eye_color != "unknown" else "single_tone",
+                finish=eyeshadow_finish,
+                shimmer=round(max(0.0, min(0.92, upper_shimmer * 1.2 + lower_shimmer * 0.4)), 2),
+                intensity=round(max(0.10, min(0.84, max(upper_eye_saturation, lower_eye_saturation, eye_saturation) + 0.10)), 2),
+                confidence=0.68 if main_eye_color != "unknown" else 0.40,
             ),
             eyelashes=EyelashesFeatures(
                 upper_density=round(max(0.16, min(0.92, liner_density * 2.1 + 0.10)), 2),
@@ -682,24 +881,27 @@ class ReferenceParserService:
                 confidence=0.67,
             ),
             aegyo_sal=AegyoSalFeatures(
-                exists=under_eye_std > 10,
-                highlight_color=highlight_color,
+                exists=aegyo_exists,
+                highlight_color=highlight_color if highlight_color != "unknown" else lower_lid_color,
                 shadow_color=contour_color,
                 shape="soft_parallel",
-                intensity=round(max(0.06, min(0.68, under_eye_std / 28.0)), 2),
-                confidence=0.58,
+                intensity=round(max(0.04, min(0.68, under_eye_std / 28.0 + lower_shimmer * 0.18)), 2),
+                confidence=0.60 if aegyo_exists else 0.42,
             ),
             lips=LipFeatures(
                 color=lip_color,
                 shape="defined_full" if lip_saturation > 0.55 else "soft_full",
+                temperature=lip_temperature,
+                lightness=lip_lightness,
+                finish=lip_finish,
                 edge_blur=0.46,
-                gloss=round(max(0.06, min(0.88, face_glow * 0.70 + 0.08)), 2),
+                gloss=round(max(0.04, min(0.90, face_glow * 0.55 + self._highlight_ratio(regions.lips) * 0.60)), 2),
                 saturation=round(lip_saturation, 2),
-                intensity=round(max(0.22, min(0.92, lip_saturation + 0.16)), 2),
+                intensity=round(max(0.16, min(0.92, lip_saturation + 0.16)), 2),
                 edge_definition=round(max(0.10, min(0.92, 0.30 + lip_saturation * 0.65 + lip_std / 220.0)), 2),
                 cupid_bow_definition=round(max(0.18, min(0.88, 0.34 + lip_saturation * 0.42)), 2),
                 bite_effect=round(max(0.04, min(0.46, 0.22 - lip_saturation * 0.12)), 2),
-                confidence=0.72,
+                confidence=0.72 if lip_color != "unknown" else 0.44,
             ),
         )
 
@@ -745,9 +947,10 @@ class ReferenceParserService:
 
         bang_text = f"with {bangs.type}" if bangs.exists else "with no bangs"
         style_caption = (
-            f"{hair.primary_style or hair.style} {hair.texture} hair, "
+            f"{hair.primary_style or hair.style} {hair.texture} hair with {hair.surface_finish} finish, "
             f"{bang_text}, {makeup.base_makeup.finish} skin, "
-            f"{makeup.eyeshadow.main_color} eyes, {makeup.lips.color} lips, "
+            f"upper lid {makeup.eyeshadow.upper_lid_color}, lower lid {makeup.eyeshadow.lower_lid_color}, "
+            f"{makeup.lips.finish} {makeup.lips.color} lips, "
             f"{texture.overall_vibe} vibe"
         )
         confidence_overrides = {
@@ -755,7 +958,10 @@ class ReferenceParserService:
             "hair.parting": 0.72 if hair.parting not in {"unknown", "unclear"} else 0.45,
             "bangs.type": round(bangs.confidence, 2),
             "makeup.base.finish": makeup.base_makeup.finish_confidence,
+            "makeup.eyeshadow.upper_lid_color": makeup.eyeshadow.confidence,
+            "makeup.eyeshadow.lower_lid_color": makeup.eyeshadow.confidence,
             "makeup.lips.color": makeup.lips.confidence,
+            "makeup.lips.finish": makeup.lips.confidence,
             "texture.photo_style": texture.confidence,
             "reference.parse_confidence": parse_confidence,
         }
@@ -803,10 +1009,16 @@ class ReferenceParserService:
             [
                 f"primary_style:{hair.primary_style}",
                 f"hair_color:{hair.color.label}",
+                f"hair_surface_finish:{hair.surface_finish}",
+                f"hair_bun_silhouette:{hair.bun_silhouette}",
                 f"base_finish:{makeup.base_makeup.finish}",
+                f"brow_tone:{makeup.eyebrow.tone}",
                 f"blush:{makeup.blush.color}",
                 f"lip:{makeup.lips.color}",
-                f"eyeshadow:{makeup.eyeshadow.main_color}",
+                f"lip_finish:{makeup.lips.finish}",
+                f"upper_lid:{makeup.eyeshadow.upper_lid_color}",
+                f"lower_lid:{makeup.eyeshadow.lower_lid_color}",
+                f"outer_corner:{makeup.eyeshadow.outer_corner_color}",
                 f"eyeliner:{makeup.eyeliner.style}",
                 texture.photo_style,
                 texture.overall_vibe,
@@ -858,6 +1070,12 @@ class ReferenceParserService:
         left_eye_rect = self._rect_from_geom(geometry, -0.74, -0.02, -0.14, 0.28)
         right_eye_rect = self._rect_from_geom(geometry, 0.14, -0.02, 0.74, 0.28)
         eye_band_rect = self._rect_from_geom(geometry, -0.78, -0.06, 0.78, 0.34)
+        upper_lid_left_rect = self._rect_from_geom(geometry, -0.68, -0.08, -0.16, 0.14)
+        upper_lid_right_rect = self._rect_from_geom(geometry, 0.16, -0.08, 0.68, 0.14)
+        lower_lid_left_rect = self._rect_from_geom(geometry, -0.64, 0.10, -0.16, 0.32)
+        lower_lid_right_rect = self._rect_from_geom(geometry, 0.16, 0.10, 0.64, 0.32)
+        outer_corner_left_rect = self._rect_from_geom(geometry, -0.72, 0.00, -0.40, 0.20)
+        outer_corner_right_rect = self._rect_from_geom(geometry, 0.40, 0.00, 0.72, 0.20)
         under_eye_rect = self._rect_from_geom(geometry, -0.68, 0.18, 0.68, 0.46)
         nose_bridge_rect = self._rect_from_geom(geometry, -0.12, -0.04, 0.12, 0.52)
         forehead_highlight_rect = self._rect_from_geom(geometry, -0.34, -0.88, 0.34, -0.40)
@@ -915,6 +1133,22 @@ class ReferenceParserService:
             predicate=lambda rgb, hsv, xy: self._brightness(rgb) < 0.62 or hsv[1] > 0.10,
         )
         eye_band_mask = self._merge_with_shape_hint(eye_band_mask, self._rect_mask(size, eye_band_rect), minimum_fill=0.25)
+        upper_lid_left_mask = self._create_pixel_mask(
+            image,
+            upper_lid_left_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) < 0.72 or hsv[1] > 0.08,
+        )
+        upper_lid_right_mask = self._create_pixel_mask(
+            image,
+            upper_lid_right_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) < 0.72 or hsv[1] > 0.08,
+        )
+        upper_lid_left_mask = self._merge_with_shape_hint(
+            upper_lid_left_mask, self._rect_mask(size, upper_lid_left_rect), minimum_fill=0.18
+        )
+        upper_lid_right_mask = self._merge_with_shape_hint(
+            upper_lid_right_mask, self._rect_mask(size, upper_lid_right_rect), minimum_fill=0.18
+        )
 
         liner_left_mask = self._create_pixel_mask(
             image,
@@ -935,6 +1169,38 @@ class ReferenceParserService:
             predicate=lambda rgb, hsv, xy: self._brightness(rgb) > 0.55 or hsv[1] > 0.08,
         )
         under_eye_mask = self._merge_with_shape_hint(under_eye_mask, self._rect_mask(size, under_eye_rect), minimum_fill=0.24)
+        lower_lid_left_mask = self._create_pixel_mask(
+            image,
+            lower_lid_left_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) > 0.46 or hsv[1] > 0.06,
+        )
+        lower_lid_right_mask = self._create_pixel_mask(
+            image,
+            lower_lid_right_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) > 0.46 or hsv[1] > 0.06,
+        )
+        lower_lid_left_mask = self._merge_with_shape_hint(
+            lower_lid_left_mask, self._rect_mask(size, lower_lid_left_rect), minimum_fill=0.18
+        )
+        lower_lid_right_mask = self._merge_with_shape_hint(
+            lower_lid_right_mask, self._rect_mask(size, lower_lid_right_rect), minimum_fill=0.18
+        )
+        outer_corner_left_mask = self._create_pixel_mask(
+            image,
+            outer_corner_left_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) < 0.60 or hsv[1] > 0.14,
+        )
+        outer_corner_right_mask = self._create_pixel_mask(
+            image,
+            outer_corner_right_rect,
+            predicate=lambda rgb, hsv, xy: self._brightness(rgb) < 0.60 or hsv[1] > 0.14,
+        )
+        outer_corner_left_mask = self._merge_with_shape_hint(
+            outer_corner_left_mask, self._rect_mask(size, outer_corner_left_rect), minimum_fill=0.16
+        )
+        outer_corner_right_mask = self._merge_with_shape_hint(
+            outer_corner_right_mask, self._rect_mask(size, outer_corner_right_rect), minimum_fill=0.16
+        )
 
         blush_left_mask = self._create_pixel_mask(
             image,
@@ -997,6 +1263,12 @@ class ReferenceParserService:
             "brow_left": left_brow_mask,
             "brow_right": right_brow_mask,
             "eye_band": eye_band_mask,
+            "upper_lid_left": upper_lid_left_mask,
+            "upper_lid_right": upper_lid_right_mask,
+            "lower_lid_left": lower_lid_left_mask,
+            "lower_lid_right": lower_lid_right_mask,
+            "outer_corner_left": outer_corner_left_mask,
+            "outer_corner_right": outer_corner_right_mask,
             "liner_left": liner_left_mask,
             "liner_right": liner_right_mask,
             "under_eye": under_eye_mask,
@@ -1112,6 +1384,12 @@ class ReferenceParserService:
             ]),
             blur_radius=2,
         )
+        upper_lid_left_mask = self._polygon_mask(size, self._upper_lid_poly(eye_left), blur_radius=1)
+        upper_lid_right_mask = self._polygon_mask(size, self._upper_lid_poly(eye_right), blur_radius=1)
+        lower_lid_left_mask = self._polygon_mask(size, self._lower_lid_poly(eye_left), blur_radius=1)
+        lower_lid_right_mask = self._polygon_mask(size, self._lower_lid_poly(eye_right), blur_radius=1)
+        outer_corner_left_mask = self._polygon_mask(size, self._outer_corner_poly(eye_left), blur_radius=1)
+        outer_corner_right_mask = self._polygon_mask(size, self._outer_corner_poly(eye_right), blur_radius=1)
         liner_left_mask = self._polygon_mask(size, self._expand_poly(eye_left, 1.28, 1.30), blur_radius=1)
         liner_right_mask = self._polygon_mask(size, self._expand_poly(eye_right, 1.28, 1.30), blur_radius=1)
         under_eye_mask = self._polygon_mask(
@@ -1149,6 +1427,12 @@ class ReferenceParserService:
             "brow_left": left_brow_mask,
             "brow_right": right_brow_mask,
             "eye_band": eye_band_mask,
+            "upper_lid_left": upper_lid_left_mask,
+            "upper_lid_right": upper_lid_right_mask,
+            "lower_lid_left": lower_lid_left_mask,
+            "lower_lid_right": lower_lid_right_mask,
+            "outer_corner_left": outer_corner_left_mask,
+            "outer_corner_right": outer_corner_right_mask,
             "liner_left": liner_left_mask,
             "liner_right": liner_right_mask,
             "under_eye": under_eye_mask,
@@ -1222,6 +1506,35 @@ class ReferenceParserService:
         left = build_eye_strip(eye_left)
         right = build_eye_strip(eye_right)
         return np.vstack([left, right[::-1]])
+
+    def _upper_lid_poly(self, eye: np.ndarray) -> np.ndarray:
+        top = eye[[0, 1, 2, 3]].astype(np.float32)
+        bottom = eye[[3, 2, 1, 0]].astype(np.float32)
+        bottom[:, 1] += 8.0
+        top[:, 1] -= 4.0
+        return np.vstack([top, bottom])
+
+    def _lower_lid_poly(self, eye: np.ndarray) -> np.ndarray:
+        upper = eye[[0, 5, 4, 3]].astype(np.float32)
+        lower = eye[[3, 4, 5, 0]].astype(np.float32)
+        upper[:, 1] += 4.0
+        lower[:, 1] += 14.0
+        return np.vstack([upper, lower])
+
+    def _outer_corner_poly(self, eye: np.ndarray) -> np.ndarray:
+        corner = eye[[2, 3, 4]].astype(np.float32)
+        center = corner.mean(axis=0)
+        expanded = corner.copy()
+        expanded[:, 0] = center[0] + (expanded[:, 0] - center[0]) * 1.45
+        expanded[:, 1] = center[1] + (expanded[:, 1] - center[1]) * 1.35
+        tail = np.array(
+            [
+                [expanded[-1, 0] + 6.0, expanded[-1, 1] + 2.0],
+                [expanded[0, 0] + 4.0, expanded[0, 1] - 2.0],
+            ],
+            dtype=np.float32,
+        )
+        return np.vstack([expanded, tail])
 
     def _cheek_poly(self, jaw: np.ndarray, nose: np.ndarray, side: str) -> np.ndarray:
         if side == "left":
@@ -1384,15 +1697,44 @@ class ReferenceParserService:
         left_dark: float,
         right_dark: float,
     ) -> Image.Image:
+        crown_sample = self._blend_regions(regions.upper_band, regions.crown_band)
+        crown_rgb = self._median_rgb_non_background(crown_sample)
+        if self._brightness(crown_rgb) < 0.46:
+            return crown_sample
         if right_dark >= left_dark:
             return self._blend_regions(regions.right_mid, regions.right_strip)
         return self._blend_regions(regions.left_strip, regions.right_mid)
 
+    def _resolve_region_color(self, image: Image.Image, rgb: RGB, role: str) -> str:
+        saturation = self._saturation(rgb)
+        std = self._channel_std(image)
+        brightness = self._brightness(rgb)
+        if role in {"eyes", "lips", "blush"}:
+            if saturation < 0.08 and std < 10:
+                return "unknown"
+        elif role == "brow":
+            if brightness > 0.78 and std < 12:
+                return "unknown"
+        elif role == "contour":
+            if brightness > 0.78 and saturation < 0.10:
+                return "unknown"
+        return self._classify_makeup_color(rgb, role=role)
+
+    def _pick_first_known(self, *values: str) -> str:
+        for value in values:
+            if value and value != "unknown":
+                return value
+        return "unknown"
+
     def _classify_hair_color(self, rgb: RGB) -> str:
         brightness = self._brightness(rgb)
         warmth = rgb.r - rgb.b
-        if brightness < 0.20:
+        if brightness < 0.22:
             return "black"
+        if brightness < 0.34:
+            return "black_brown"
+        if warmth <= 8 and brightness < 0.44:
+            return "black_brown"
         if warmth > 18:
             return "dark_brown"
         if warmth > 8:
@@ -1417,6 +1759,116 @@ class ReferenceParserService:
             return "semi_matte"
         return "matte"
 
+    def _classify_color_temperature(self, rgb: RGB, role: str) -> str:
+        hue = self._approx_hue(rgb)
+        saturation = self._saturation(rgb)
+        brightness = self._brightness(rgb)
+        warmth = rgb.r - rgb.b
+        if role == "brow":
+            if hue >= 170 or warmth <= 0:
+                return "cool"
+            if saturation >= 0.52 and warmth >= 96 and brightness >= 0.56:
+                return "warm"
+            return "neutral"
+        if role == "lips":
+            if hue >= 180:
+                return "cool"
+            if (hue >= 340 or hue < 8) and saturation >= 0.50:
+                return "neutral"
+            if 28 <= hue <= 40 and saturation <= 0.22 and brightness >= 0.80:
+                return "cool"
+            if 10 <= hue < 24 and saturation >= 0.42 and brightness <= 0.62:
+                return "neutral"
+            if 10 <= hue < 20 and saturation <= 0.28 and brightness >= 0.72:
+                return "neutral"
+            if 18 <= hue < 40 and (saturation >= 0.20 or brightness >= 0.72):
+                return "warm"
+            return "neutral"
+        if warmth >= 20:
+            return "warm"
+        if warmth <= 4:
+            return "cool"
+        return "neutral"
+
+    def _classify_color_depth(self, rgb: RGB, role: str) -> str:
+        brightness = self._brightness(rgb)
+        if role == "hair":
+            if brightness < 0.22:
+                return "deep"
+            if brightness < 0.35:
+                return "medium_deep"
+            return "medium"
+        if brightness < 0.30:
+            return "deep"
+        if brightness < 0.50:
+            return "medium"
+        if brightness < 0.70:
+            return "light"
+        return "very_light"
+
+    def _classify_hair_surface_finish(
+        self,
+        texture: str,
+        gloss: float,
+        sleekness: float,
+        volume_side: float,
+    ) -> str:
+        if sleekness >= 0.82 and gloss >= 0.36:
+            return "sleek_polished"
+        if texture in {"soft_wave", "wavy"} and volume_side >= 0.18:
+            return "airy_textured"
+        if gloss >= 0.30:
+            return "soft_lustrous"
+        return "soft_natural"
+
+    def _classify_bun_silhouette(
+        self,
+        *,
+        style: str,
+        updo_type: str,
+        volume_crown: float,
+        sleekness: float,
+    ) -> str:
+        if style != "updo":
+            return "none"
+        if updo_type == "tight_bun" or sleekness >= 0.82:
+            return "tight_crown_bun"
+        if volume_crown >= 0.68:
+            return "soft_crown_bun"
+        if updo_type == "bun_or_ponytail":
+            return "lifted_updo"
+        return "rounded_updo"
+
+    def _classify_eye_finish(
+        self,
+        upper_lid: Image.Image,
+        lower_lid: Image.Image,
+        outer_corner: Image.Image,
+    ) -> str:
+        shimmer = (
+            self._highlight_ratio(upper_lid) * 0.55
+            + self._highlight_ratio(lower_lid) * 0.20
+            + self._highlight_ratio(outer_corner) * 0.25
+        )
+        if shimmer >= 0.34:
+            return "shimmer"
+        if shimmer >= 0.22:
+            return "satin"
+        return "matte"
+
+    def _classify_lip_finish(self, lips: Image.Image, lip_rgb: RGB, face_glow: float) -> str:
+        lip_glow = self._highlight_ratio(lips)
+        lip_sat = self._saturation(lip_rgb)
+        if lip_sat >= 0.50 and lip_glow <= 0.42:
+            return "matte"
+        if lip_glow >= 0.34:
+            return "glossy"
+        if lip_glow >= 0.24:
+            return "pearly" if lip_sat <= 0.26 else "satin"
+        if face_glow >= 0.18:
+            return "satin"
+        return "matte"
+
     def _classify_makeup_color(self, rgb: RGB, role: str) -> str:
         hue = self._approx_hue(rgb)
         saturation = self._saturation(rgb)
@@ -1432,21 +1884,91 @@ class ReferenceParserService:
         if role == "contour":
             if brightness < 0.35:
                 return "taupe_brown"
+            if hue > 160:
+                return "cool_taupe"
             return "soft_brown"
 
         if role == "brow":
-            if brightness < 0.22:
+            if brightness < 0.18 and saturation < 0.10:
                 return "deep_charcoal"
-            if hue < 24:
+            if 10 <= hue < 24 and brightness < 0.22 and saturation <= 0.38:
+                return "grey_brown"
+            if 70 <= hue < 170 and brightness < 0.24:
+                return "light_brown"
+            if saturation < 0.24 and brightness < 0.52 and abs(rgb.r - rgb.b) < 28:
+                return "grey_brown"
+            if hue < 35 and brightness < 0.48:
                 return "deep_brown"
             return "natural_brown"
 
+        if role == "eyes":
+            if saturation >= 0.18 and 60 <= hue < 120:
+                return "yellow_green"
+            if saturation >= 0.18 and 120 <= hue < 170:
+                if hue < 145 and brightness >= 0.46:
+                    return "yellow_green"
+                return "olive_green"
+            if saturation >= 0.34 and brightness < 0.18 and 28 <= hue < 50:
+                return "soft_pink"
+            if hue < 18:
+                return "pink_brown" if brightness > 0.68 else "warm_brown"
+            if hue < 30:
+                if brightness > 0.60 and saturation <= 0.45:
+                    return "pink_brown"
+                if brightness < 0.55 and saturation <= 0.35:
+                    return "light_brown"
+                if brightness >= 0.45 and saturation >= 0.38:
+                    return "warm_brown"
+                return "peach_brown"
+            if hue < 45:
+                if brightness < 0.55 and saturation <= 0.34:
+                    return "light_brown"
+                if saturation >= 0.42:
+                    return "soft_pink"
+                return "soft_beige_brown"
+            if hue < 70:
+                return "soft_coral"
+            if hue < 120:
+                return "yellow_green"
+            if hue < 170:
+                return "olive_green"
+            if hue < 260:
+                return "taupe"
+            return "cool_mauve"
+
+        if role == "lips":
+            if saturation >= 0.45 and (hue < 10 or hue >= 340):
+                return "true_red"
+            if brightness > 0.74 and saturation < 0.26:
+                if hue < 18:
+                    return "dusty_rose"
+                if hue < 22:
+                    return "pink_nude"
+                if hue < 40:
+                    return "coral_peach"
+                return "soft_beige"
+            if hue < 18:
+                return "rose_brown"
+            if hue < 32:
+                return "peach_pink" if brightness > 0.52 else "dusty_rose"
+            if hue < 48:
+                return "coral_peach" if brightness > 0.62 else "muted_peach"
+            if hue < 75:
+                return "soft_coral"
+            if hue < 260:
+                return "cool_mauve"
+            return "rose_pink"
+
         if saturation < 0.14 and brightness > 0.72:
             return "soft_beige"
-        if hue < 18:
+        if role == "lips" and brightness > 0.68 and saturation < 0.20:
+            return "pearly_apricot"
+        if hue < 15:
             return "rose_brown" if role == "lips" else "warm_brown"
+        if hue < 28:
+            return "dusty_rose" if role == "lips" else "peach_brown"
         if hue < 40:
-            return "muted_peach" if role != "eyes" else "peach_brown"
+            return "muted_peach" if role != "eyes" else "soft_beige_brown"
         if hue < 70:
             return "soft_coral"
         if hue < 120:
@@ -1457,10 +1979,32 @@ class ReferenceParserService:
             return "cool_mauve"
         return "rose_pink"
 
+    def _refine_eye_color_label(self, label: str, rgb: RGB, zone: str) -> str:
+        hue = self._approx_hue(rgb)
+        saturation = self._saturation(rgb)
+        brightness = self._brightness(rgb)
+        if zone == "lower" and hue < 28 and brightness > 0.70 and saturation <= 0.34:
+            return "light_brown"
+        if zone == "lower" and 8 <= hue < 28 and 0.42 <= brightness <= 0.68 and saturation <= 0.22:
+            return "warm_brown"
+        if zone == "upper" and hue < 18 and brightness > 0.48 and saturation <= 0.38:
+            return "soft_pink"
+        if zone in {"upper", "outer"} and hue < 22 and brightness > 0.58 and saturation <= 0.45:
+            return "pink_brown"
+        if zone == "outer" and 8 <= hue < 28 and 0.40 <= brightness <= 0.66 and saturation <= 0.22:
+            return "warm_brown"
+        if saturation >= 0.34 and brightness < 0.18 and 28 <= hue < 50:
+            return "soft_pink"
+        if zone == "outer" and hue < 22 and brightness > 0.50 and saturation < 0.10:
+            return "soft_pink"
+        return label
+
     def _classify_secondary_eye_color(self, rgb: RGB) -> str:
         hue = self._approx_hue(rgb)
         if hue < 25:
             return "deep_brown"
+        if hue < 38:
+            return "beige_brown"
         if hue < 55:
             return "soft_peach"
         if hue < 90:
@@ -1517,6 +2061,43 @@ class ReferenceParserService:
             return self._median_rgb(image)
         filtered.sort(key=lambda value: sum(value))
         mid = filtered[len(filtered) // 2]
+        return RGB(*mid)
+
+    def _feature_rgb(self, image: Image.Image, role: str) -> RGB:
+        resized = image.convert("RGB").resize((64, 64))
+        candidates: list[tuple[float, tuple[int, int, int]]] = []
+        for pixel in resized.getdata():
+            rgb = RGB(*pixel)
+            brightness = self._brightness(pixel)
+            saturation = self._saturation(rgb)
+            if brightness > 0.97:
+                continue
+            if role == "eyes":
+                if brightness < 0.12 or saturation < 0.05:
+                    continue
+                score = saturation * 2.2 + max(0.0, 0.55 - abs(brightness - 0.55))
+            elif role == "lips":
+                if saturation < 0.05:
+                    continue
+                score = saturation * 2.5 + max(0.0, 0.70 - abs(brightness - 0.60))
+            elif role == "brow":
+                if brightness > 0.86:
+                    continue
+                score = (1.0 - brightness) * 1.5 + saturation
+            else:
+                if brightness < 0.05:
+                    continue
+                score = saturation + max(0.0, 0.60 - abs(brightness - 0.50))
+            candidates.append((score, pixel))
+
+        if not candidates:
+            return self._median_rgb_non_background(image)
+
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        keep_count = max(9, len(candidates) // 2)
+        kept = [pixel for _, pixel in candidates[:keep_count]]
+        kept.sort(key=lambda value: sum(value))
+        mid = kept[len(kept) // 2]
         return RGB(*mid)
 
     def _rgb_to_hex(self, rgb: RGB) -> str:

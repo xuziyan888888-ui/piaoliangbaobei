@@ -333,16 +333,22 @@ class LocalInpaintWorker:
         pipeline_name: str = "local_inpaint",
     ) -> list[CandidateResult]:
         stage_context = stage_context or {}
+        passthrough_image = stage_context.get("source_image")
         return [
             CandidateResult(
                 candidate_id=f"{job.job_id}_local_{idx}",
                 pipeline_type=pipeline_name,
-                image_url=f"mock://{job.job_id}/local/{idx}.png",
+                image_url=(
+                    str(passthrough_image)
+                    if isinstance(passthrough_image, str) and passthrough_image
+                    else f"mock://{job.job_id}/local/{idx}.png"
+                ),
                 metadata={
                     "model": settings.local_inpaint.model_name,
                     "provider_mode": mode,
                     "provider_reason": reason,
                     "stage_context": stage_context,
+                    "fallback_passthrough_source_image": passthrough_image,
                 },
             )
             for idx in range(job.candidate_count)

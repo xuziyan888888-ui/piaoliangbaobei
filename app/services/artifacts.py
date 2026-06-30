@@ -1,10 +1,12 @@
 import base64
 import imghdr
+import shutil
 from pathlib import Path
 from urllib import request
 from urllib.parse import urlparse
 
 from app.models.pipeline import CandidateResult
+from app.utils.images import is_local_file
 
 
 class ArtifactService:
@@ -34,6 +36,10 @@ class ArtifactService:
             target_path.write_bytes(b"")
             return
 
+        if is_local_file(image_ref):
+            shutil.copyfile(image_ref, target_path)
+            return
+
         raise ValueError("Unsupported image reference for artifact persistence")
 
     def _guess_suffix(self, image_ref: str) -> str:
@@ -53,6 +59,12 @@ class ArtifactService:
             return ".png"
 
         if image_ref.startswith("mock://"):
+            return ".png"
+
+        if is_local_file(image_ref):
+            suffix = Path(image_ref).suffix
+            if suffix and suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                return suffix
             return ".png"
 
         image_type = imghdr.what(None, h=base64.b64decode(image_ref))

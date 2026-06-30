@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference6",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference6.jpg",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User confirmed the lip color should read as pink-bean-paste rather than coral.",
+  "expected": {
+    "hair": {
+      "style": "down",
+      "updo_type": "none",
+      "primary_style": "braided_pigtails",
+      "parting": "middle",
+      "surface_finish": "soft_natural",
+      "bun_silhouette": "none",
+      "color": "warm_brown",
+      "color_temperature": "warm"
+    },
+    "bangs": {
+      "exists": true,
+      "type": "airy_side_bangs"
+    },
+    "side_locks": {
+      "exists": true
+    },
+    "eyebrow": {
+      "shape": "soft_arch",
+      "color": "deep_brown",
+      "tone": null
+    },
+    "eyeshadow": {
+      "upper_lid_color": "light_brown",
+      "lower_lid_color": "light_brown",
+      "outer_corner_color": "light_brown",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "inner_defined",
+      "color": "soft_brown"
+    },
+    "lips": {
+      "color": "dusty_rose",
+      "finish": "glossy",
+      "temperature": "cool"
+    },
+    "base_makeup": {
+      "finish": "matte"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-06-28T18:57:30+08:00",
+  "source_dir": "D:\\水木年华\\测试图",
+  "sample_count": 7,
+  "created_annotation_count": 7,
+  "samples": [
+    {
+      "sample_id": "reference",
+      "image_path": "D:\\水木年华\\测试图\\reference.png",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference2",
+      "image_path": "D:\\水木年华\\测试图\\reference2.png",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference2.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference3",
+      "image_path": "D:\\水木年华\\测试图\\reference3.jpg",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference3.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference4",
+      "image_path": "D:\\水木年华\\测试图\\reference4.jpg",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference4.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference5",
+      "image_path": "D:\\水木年华\\测试图\\reference5.jpg",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference5.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference6",
+      "image_path": "D:\\水木年华\\测试图\\reference6.jpg",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference6.json",
+      "status": "pending"
+    },
+    {
+      "sample_id": "reference7",
+      "image_path": "D:\\水木年华\\测试图\\reference7.jpg",
+      "annotation_path": "D:\\水木年华\\evals\\reference_parser\\annotations\\reference7.json",
+      "status": "pending"
+    }
+  ]
+}

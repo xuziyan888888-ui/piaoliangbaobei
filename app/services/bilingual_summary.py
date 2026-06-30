@@ -55,6 +55,10 @@ class BilingualSummaryService:
                         _entry("Parting", "分缝", hair.parting, self._zh_parting(hair.parting)),
                         _entry("Texture", "发丝质感", hair.texture, self._zh_texture(hair.texture)),
                         _entry("Hair color", "发色", hair.color.label, self._zh_color(hair.color.label)),
+                        _entry("Hair color temperature", "发色冷暖", hair.color_temperature, self._zh_temperature(hair.color_temperature)),
+                        _entry("Hair color depth", "发色深浅", hair.color_depth, self._zh_depth(hair.color_depth)),
+                        _entry("Hair surface finish", "发面质感", hair.surface_finish, self._zh_hair_finish(hair.surface_finish)),
+                        _entry("Bun silhouette", "盘发轮廓", hair.bun_silhouette, self._zh_bun_silhouette(hair.bun_silhouette)),
                         _entry("Crown volume", "颅顶蓬松度", hair.volume_crown),
                         _entry("Side volume", "两侧蓬松度", hair.volume_side),
                         _entry("Hairline exposure", "发际线露出程度", hair.hairline_exposure),
@@ -94,6 +98,10 @@ class BilingualSummaryService:
                         _entry("Highlight color", "高光颜色", makeup.highlight.color, self._zh_color(makeup.highlight.color)),
                         _entry("Eyebrow shape", "眉型", makeup.eyebrow.shape, self._zh_brow_shape(makeup.eyebrow.shape)),
                         _entry("Eyebrow color", "眉色", makeup.eyebrow.color, self._zh_color(makeup.eyebrow.color)),
+                        _entry("Eyebrow tone", "眉色冷暖", makeup.eyebrow.tone, self._zh_temperature(makeup.eyebrow.tone)),
+                        _entry("Upper lid color", "上眼皮颜色", makeup.eyeshadow.upper_lid_color, self._zh_color(makeup.eyeshadow.upper_lid_color)),
+                        _entry("Lower lid color", "下眼皮颜色", makeup.eyeshadow.lower_lid_color, self._zh_color(makeup.eyeshadow.lower_lid_color)),
+                        _entry("Outer corner color", "眼尾加深色", makeup.eyeshadow.outer_corner_color, self._zh_color(makeup.eyeshadow.outer_corner_color)),
                         _entry("Eyeshadow color", "眼影主色", makeup.eyeshadow.main_color, self._zh_color(makeup.eyeshadow.main_color)),
                         _entry(
                             "Eyeshadow secondary",
@@ -101,11 +109,15 @@ class BilingualSummaryService:
                             makeup.eyeshadow.secondary_color,
                             self._zh_color(makeup.eyeshadow.secondary_color),
                         ),
+                        _entry("Eyeshadow finish", "眼影材质", makeup.eyeshadow.finish, self._zh_makeup_finish(makeup.eyeshadow.finish)),
                         _entry("Eyeliner style", "眼线样式", makeup.eyeliner.style, self._zh_eyeliner_style(makeup.eyeliner.style)),
                         _entry("Eyeliner color", "眼线颜色", makeup.eyeliner.color, self._zh_color(makeup.eyeliner.color)),
                         _entry("Lash intensity", "睫毛强度", makeup.eyelashes.intensity),
                         _entry("Aegyo sal", "卧蚕", makeup.aegyo_sal.exists, "有" if makeup.aegyo_sal.exists else "无"),
                         _entry("Lip color", "唇色", makeup.lips.color, self._zh_color(makeup.lips.color)),
+                        _entry("Lip finish", "唇妆质地", makeup.lips.finish, self._zh_makeup_finish(makeup.lips.finish)),
+                        _entry("Lip temperature", "唇色冷暖", makeup.lips.temperature, self._zh_temperature(makeup.lips.temperature)),
+                        _entry("Lip lightness", "唇色深浅", makeup.lips.lightness, self._zh_depth(makeup.lips.lightness)),
                         _entry("Lip gloss", "唇部光泽", makeup.lips.gloss),
                         _entry("Lip saturation", "唇部饱和度", makeup.lips.saturation),
                         _entry("Lip edge definition", "唇缘清晰度", makeup.lips.edge_definition),
@@ -174,7 +186,10 @@ class BilingualSummaryService:
                         _entry("Target length", "目标长度", hair.length, self._zh_length(hair.length)),
                         _entry("Target parting", "目标分缝", hair.parting, self._zh_parting(hair.parting)),
                         _entry("Target texture", "目标发丝质感", hair.texture, self._zh_texture(hair.texture)),
+                        _entry("Target hair surface finish", "目标发面质感", hair.surface_finish, self._zh_hair_finish(hair.surface_finish)),
+                        _entry("Target bun silhouette", "目标盘发轮廓", hair.bun_silhouette, self._zh_bun_silhouette(hair.bun_silhouette)),
                         _entry("Target hair color", "目标发色", hair.color.label, self._zh_color(hair.color.label)),
+                        _entry("Target hair temperature", "目标发色冷暖", hair.color_temperature, self._zh_temperature(hair.color_temperature)),
                         _entry(
                             "Target bangs",
                             "目标刘海",
@@ -196,10 +211,13 @@ class BilingualSummaryService:
                         _entry(
                             "Eyebrow target",
                             "眉毛目标",
-                            f"{makeup.eyebrow.shape} / {makeup.eyebrow.color}",
-                            f"{self._zh_brow_shape(makeup.eyebrow.shape)} / {self._zh_color(makeup.eyebrow.color)}",
+                            f"{makeup.eyebrow.shape} / {makeup.eyebrow.color} / {makeup.eyebrow.tone}",
+                            f"{self._zh_brow_shape(makeup.eyebrow.shape)} / {self._zh_color(makeup.eyebrow.color)} / {self._zh_temperature(makeup.eyebrow.tone)}",
                         ),
-                        _entry("Eyeshadow target", "眼影目标", makeup.eyeshadow.main_color, self._zh_color(makeup.eyeshadow.main_color)),
+                        _entry("Upper lid target", "上眼皮目标", makeup.eyeshadow.upper_lid_color, self._zh_color(makeup.eyeshadow.upper_lid_color)),
+                        _entry("Lower lid target", "下眼皮目标", makeup.eyeshadow.lower_lid_color, self._zh_color(makeup.eyeshadow.lower_lid_color)),
+                        _entry("Outer corner target", "眼尾目标", makeup.eyeshadow.outer_corner_color, self._zh_color(makeup.eyeshadow.outer_corner_color)),
+                        _entry("Eyeshadow finish", "眼影材质目标", makeup.eyeshadow.finish, self._zh_makeup_finish(makeup.eyeshadow.finish)),
                         _entry(
                             "Eyeliner target",
                             "眼线目标",
@@ -209,6 +227,7 @@ class BilingualSummaryService:
                         _entry("Lash target", "睫毛目标", makeup.eyelashes.intensity),
                         _entry("Aegyo sal target", "卧蚕目标", makeup.aegyo_sal.intensity),
                         _entry("Lip target", "唇妆目标", makeup.lips.color, self._zh_color(makeup.lips.color)),
+                        _entry("Lip finish target", "唇妆质地目标", makeup.lips.finish, self._zh_makeup_finish(makeup.lips.finish)),
                         _entry("Lip gloss target", "唇部光泽目标", makeup.lips.gloss),
                         _entry("Lip edge target", "唇缘清晰度目标", makeup.lips.edge_definition),
                     ],
@@ -273,6 +292,26 @@ class BilingualSummaryService:
             "unknown": "未知",
         }.get(value, value)
 
+    def _zh_hair_finish(self, value: str) -> str:
+        return {
+            "sleek_polished": "顺滑抛光感",
+            "soft_lustrous": "柔和光泽感",
+            "soft_natural": "柔和自然感",
+            "airy_textured": "轻盈纹理感",
+            "balanced_natural": "均衡自然感",
+            "unknown": "未知",
+        }.get(value, value)
+
+    def _zh_bun_silhouette(self, value: str) -> str:
+        return {
+            "none": "无",
+            "tight_crown_bun": "紧致颅顶发髻",
+            "soft_crown_bun": "柔和颅顶发髻",
+            "lifted_updo": "上提式盘发",
+            "rounded_updo": "圆润盘发",
+            "unknown": "未知",
+        }.get(value, value)
+
     def _zh_bangs_type(self, value: str) -> str:
         return {
             "none": "无刘海",
@@ -300,6 +339,34 @@ class BilingualSummaryService:
             "semi_matte": "半雾面",
             "glowy": "光泽奶油肌",
             "semi_glowy": "半光泽奶油肌",
+            "unknown": "未知",
+        }.get(value, value)
+
+    def _zh_makeup_finish(self, value: str) -> str:
+        return {
+            "matte": "哑光",
+            "satin": "缎光",
+            "shimmer": "珠光",
+            "glossy": "镜面光泽",
+            "pearly": "珠贝光泽",
+            "unknown": "未知",
+        }.get(value, value)
+
+    def _zh_temperature(self, value: str) -> str:
+        return {
+            "warm": "暖调",
+            "cool": "冷调",
+            "neutral": "中性调",
+            "unknown": "未知",
+        }.get(value, value)
+
+    def _zh_depth(self, value: str) -> str:
+        return {
+            "deep": "深色",
+            "medium_deep": "中深色",
+            "medium": "中色",
+            "light": "浅色",
+            "very_light": "很浅",
             "unknown": "未知",
         }.get(value, value)
 
@@ -348,6 +415,8 @@ class BilingualSummaryService:
             "warm_brown": "暖棕",
             "soft_brown": "柔和棕",
             "deep_brown": "深棕褐",
+            "black_brown": "黑棕",
+            "natural_brown": "自然棕",
             "ivory": "象牙白",
             "peach_brown": "蜜桃棕",
             "rose_pink": "玫瑰粉",
@@ -358,6 +427,24 @@ class BilingualSummaryService:
             "coral": "珊瑚色",
             "red_brown": "红棕",
             "grey_brown": "灰棕",
+            "deep_charcoal": "深炭灰",
+            "taupe_brown": "灰棕修容",
+            "cool_taupe": "冷灰褐",
+            "rose_brown": "玫瑰棕",
+            "muted_peach": "低饱和蜜桃",
+            "soft_beige": "柔雾米色",
+            "soft_beige_brown": "米棕",
+            "soft_coral": "柔和珊瑚",
+            "neutral_brown": "中性棕",
+            "taupe": "灰褐",
+            "cool_mauve": "冷灰紫粉",
+            "champagne": "香槟色",
+            "beige": "米色",
+            "pearly_apricot": "珠光杏粉",
+            "dusty_rose": "烟粉玫瑰",
+            "beige_brown": "米棕",
+            "soft_peach": "柔和蜜桃",
+            "olive_taupe": "橄榄灰褐",
             "unknown": "未知",
         }.get(value, value)
 

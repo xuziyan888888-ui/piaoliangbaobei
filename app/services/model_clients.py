@@ -454,11 +454,68 @@ class ArkVisualClient:
         bangs = reference.bangs
         makeup = reference.makeup_features
         texture = reference.texture_features
+        hair_target = self._join_known_traits(
+            [
+                ("primary", hair.primary_style),
+                ("secondary", hair.secondary_style),
+                ("updo", hair.updo_type),
+                ("bun silhouette", hair.bun_silhouette),
+                ("length", hair.length),
+                ("parting", hair.parting),
+                ("texture", hair.texture),
+                ("surface finish", hair.surface_finish),
+                ("color", hair.color.label),
+                ("temperature", hair.color_temperature),
+                ("depth", hair.color_depth),
+            ]
+        )
+        bangs_target = self._join_known_traits(
+            [
+                ("type", bangs.type if bangs.exists else "none"),
+                ("length", bangs.length),
+                ("curve", bangs.curve),
+            ]
+        )
+        brow_target = self._join_known_traits(
+            [
+                ("shape", makeup.eyebrow.shape),
+                ("color", makeup.eyebrow.color),
+                ("tone", makeup.eyebrow.tone),
+            ]
+        )
+        eye_target = self._join_known_traits(
+            [
+                ("upper lid", makeup.eyeshadow.upper_lid_color),
+                ("lower lid", makeup.eyeshadow.lower_lid_color),
+                ("outer corner", makeup.eyeshadow.outer_corner_color),
+                ("main shadow", makeup.eyeshadow.main_color),
+                ("secondary shadow", makeup.eyeshadow.secondary_color),
+                ("eyeshadow finish", makeup.eyeshadow.finish),
+                ("eyeliner", makeup.eyeliner.style),
+                ("eyeliner color", makeup.eyeliner.color),
+            ]
+        )
+        lip_target = self._join_known_traits(
+            [
+                ("color", makeup.lips.color),
+                ("finish", makeup.lips.finish),
+                ("temperature", makeup.lips.temperature),
+                ("lightness", makeup.lips.lightness),
+                ("shape", makeup.lips.shape),
+            ]
+        )
+        hair_target = hair_target or "preserve the reference hair structure cues"
+        bangs_target = bangs_target or "none"
+        brow_target = brow_target or "keep the original brow geometry with only soft color adaptation"
+        eye_target = eye_target or "keep eye makeup subtle and source-structure-safe"
+        lip_target = lip_target or "keep lip makeup gentle and source-shape-safe"
 
         parts = [
             f"Stage: {stage_name}",
+            "Treat the reference image as a style board for hair and makeup only. Do not copy the reference person's facial anatomy.",
             "Preserve the source person's identity, face shape, eyes, nose, mouth, skin tone base, and age impression.",
             "Lock the face and all accessories. Do not inherit the reference person's facial identity.",
+            "If the reference face conflicts with the source face, keep the source face and transfer only hairstyle and makeup attributes.",
             "Preserve glasses, headband, earrings, and non-edit clothing edges.",
             self._build_region_gate_text(control_bundle),
         ]
@@ -469,29 +526,15 @@ class ArkVisualClient:
                     "Edit only the hair region. Keep facial makeup and face geometry unchanged.",
                     "Do not redraw eyes, nose, lips, brows, eyelids, cheeks, jawline, or skin texture.",
                     "Transfer only hairstyle structure, hairline, bangs, side locks, hair texture, and hair color from the reference.",
-                    "Hair structure: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}".format(
-                        primary=hair.primary_style,
-                        secondary=hair.secondary_style,
-                        updo=hair.updo_type,
-                        length=hair.length,
-                        parting=hair.parting,
-                    ),
-                    "Hair attributes: texture {texture}, finish {finish}, color {color}, crown volume {crown:.2f}, side volume {side:.2f}, hairline exposure {hairline:.2f}, sleekness {sleek:.2f}, gloss {gloss:.2f}".format(
-                        texture=hair.texture,
-                        finish=hair.finish,
-                        color=hair.color.label,
+                    f"Hair structure target: {hair_target}.",
+                    "Hair metrics: crown volume {crown:.2f}, side volume {side:.2f}, hairline exposure {hairline:.2f}, sleekness {sleek:.2f}, gloss {gloss:.2f}".format(
                         crown=hair.volume_crown,
                         side=hair.volume_side,
                         hairline=hair.hairline_exposure,
                         sleek=hair.sleekness,
                         gloss=hair.gloss,
                     ),
-                    "Bangs: {bangs}, density {density:.2f}, length {length}, gap ratio {gap:.2f}".format(
-                        bangs=("none" if not bangs.exists else bangs.type),
-                        density=bangs.density,
-                        length=bangs.length,
-                        gap=bangs.gap_ratio,
-                    ),
+                    f"Bangs target: {bangs_target}, density {bangs.density:.2f}, gap ratio {bangs.gap_ratio:.2f}.",
                     "Do not modify lipstick, blush, eyeliner, eyeshadow, contour, highlight, brows, or foundation in this stage.",
                     "Hairstyle transfer strength {:.2f}".format(active_controls.hairstyle_strength),
                 ]
@@ -526,32 +569,17 @@ class ArkVisualClient:
                         highlight=makeup.highlight.color,
                         highlight_intensity=makeup.highlight.intensity,
                     ),
-                    "Brows: shape {shape}, color {color}, thickness {thickness:.2f}, hair texture {hair_texture:.2f}".format(
-                        shape=makeup.eyebrow.shape,
-                        color=makeup.eyebrow.color,
-                        thickness=makeup.eyebrow.thickness,
-                        hair_texture=makeup.eyebrow.hair_texture,
-                    ),
-                    "Eye makeup: eyeshadow {main}/{secondary}, eyeliner {eyeliner} {eyeliner_color}, liner length {liner_len:.2f}, liner thickness {liner_thick:.2f}, lashes intensity {lashes:.2f}, lashes curl {curl:.2f}, aegyo sal {aegyo:.2f}".format(
-                        main=makeup.eyeshadow.main_color,
-                        secondary=makeup.eyeshadow.secondary_color,
-                        eyeliner=makeup.eyeliner.style,
-                        eyeliner_color=makeup.eyeliner.color,
+                    f"Brows target: {brow_target}, thickness {makeup.eyebrow.thickness:.2f}, density {makeup.eyebrow.density:.2f}, hair texture {makeup.eyebrow.hair_texture:.2f}.",
+                    f"Eye makeup target: {eye_target}. Keep upper lid, lower lid, and outer-corner color separation instead of collapsing them into one flat shadow wash.",
+                    "Eye detail metrics: shimmer {shimmer:.2f}, liner length {liner_len:.2f}, liner thickness {liner_thick:.2f}, lashes intensity {lashes:.2f}, lashes curl {curl:.2f}, aegyo sal {aegyo:.2f}".format(
+                        shimmer=makeup.eyeshadow.shimmer,
                         liner_len=makeup.eyeliner.length,
                         liner_thick=makeup.eyeliner.thickness,
                         lashes=makeup.eyelashes.intensity,
                         curl=makeup.eyelashes.curl,
                         aegyo=makeup.aegyo_sal.intensity,
                     ),
-                    "Lips: color {lips}, shape {shape}, gloss {gloss:.2f}, saturation {sat:.2f}, edge definition {edge:.2f}, cupid bow {cupid:.2f}, bite effect {bite:.2f}".format(
-                        lips=makeup.lips.color,
-                        shape=makeup.lips.shape,
-                        gloss=makeup.lips.gloss,
-                        sat=makeup.lips.saturation,
-                        edge=makeup.lips.edge_definition,
-                        cupid=makeup.lips.cupid_bow_definition,
-                        bite=makeup.lips.bite_effect,
-                    ),
+                    f"Lip target: {lip_target}, gloss {makeup.lips.gloss:.2f}, saturation {makeup.lips.saturation:.2f}, edge definition {makeup.lips.edge_definition:.2f}, cupid bow {makeup.lips.cupid_bow_definition:.2f}, bite effect {makeup.lips.bite_effect:.2f}.",
                     "Do not change hairstyle structure or hair color in this stage.",
                     "Makeup transfer strength {:.2f}".format(active_controls.makeup_strength),
                 ]
@@ -561,16 +589,10 @@ class ArkVisualClient:
                 [
                     "Transfer only the reference hairstyle and makeup while preserving identity.",
                     "Do not replace facial identity, eye shape, nose shape, lip geometry, cheek volume, or jawline.",
-                    "Hair structure: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}".format(
-                        primary=hair.primary_style,
-                        secondary=hair.secondary_style,
-                        updo=hair.updo_type,
-                        length=hair.length,
-                        parting=hair.parting,
-                    ),
-                    "Base makeup finish {finish}, lip color {lip}, overall vibe {vibe}".format(
+                    f"Hair target: {hair_target}.",
+                    f"Makeup target: brows {brow_target}; eyes {eye_target}; lips {lip_target}.",
+                    "Base makeup finish {finish}, overall vibe {vibe}".format(
                         finish=makeup.base_makeup.finish,
-                        lip=makeup.lips.color,
                         vibe=texture.overall_vibe,
                     ),
                 ]
@@ -600,54 +622,76 @@ class ArkVisualClient:
         bangs = reference.bangs
         makeup = reference.makeup_features
         texture = reference.texture_features
+        hair_target = self._join_known_traits(
+            [
+                ("primary", hair.primary_style),
+                ("secondary", hair.secondary_style),
+                ("updo", hair.updo_type),
+                ("bun silhouette", hair.bun_silhouette),
+                ("parting", hair.parting),
+                ("texture", hair.texture),
+                ("surface finish", hair.surface_finish),
+                ("hair color", hair.color.label),
+                ("temperature", hair.color_temperature),
+                ("depth", hair.color_depth),
+            ]
+        )
+        eye_target = self._join_known_traits(
+            [
+                ("upper lid", makeup.eyeshadow.upper_lid_color),
+                ("lower lid", makeup.eyeshadow.lower_lid_color),
+                ("outer corner", makeup.eyeshadow.outer_corner_color),
+                ("eyeshadow finish", makeup.eyeshadow.finish),
+                ("eyeliner", makeup.eyeliner.style),
+                ("eyeliner color", makeup.eyeliner.color),
+            ]
+        )
+        lip_target = self._join_known_traits(
+            [
+                ("lip color", makeup.lips.color),
+                ("lip finish", makeup.lips.finish),
+                ("lip temperature", makeup.lips.temperature),
+                ("lip lightness", makeup.lips.lightness),
+            ]
+        )
+        brow_target = self._join_known_traits(
+            [
+                ("brow shape", makeup.eyebrow.shape),
+                ("brow color", makeup.eyebrow.color),
+                ("brow tone", makeup.eyebrow.tone),
+            ]
+        )
+        hair_target = hair_target or "preserve the reference hair structure cues"
+        eye_target = eye_target or "keep eye makeup subtle and source-structure-safe"
+        lip_target = lip_target or "keep lip makeup gentle and source-shape-safe"
+        brow_target = brow_target or "keep the original brow geometry with only soft color adaptation"
 
         parts = [
             "Use the first input image as the source identity image and the second input image as the hairstyle and makeup reference image.",
+            "Treat the second input image as a non-identity style board: read hairstyle silhouette, bang layout, brow tone, eye color placement, lip color, and finish, but ignore the reference person's facial anatomy.",
             "Preserve the source person's facial identity, face shape, eyes, nose, mouth, age impression, and core facial structure.",
             "Transfer the reference hairstyle and makeup strongly, while keeping the output as the same person from the source image.",
+            "If the reference face conflicts with the source face, keep the source face and transfer only hairstyle and makeup attributes.",
             "Do not redraw the source person's eye shape, eyebrow geometry, nose bridge, lip contour, cheek volume, or jawline.",
             "Preserve glasses, headband, earrings, and source accessories.",
             "Do not inherit the reference person's face, body identity, clothing, or background.",
             self._build_region_gate_text(control_bundle),
-            "Hairstyle target: primary {primary}, secondary {secondary}, updo {updo}, length {length}, parting {parting}, texture {texture}, finish {finish}, color {color}, crown volume {crown:.2f}, side volume {side:.2f}, hairline exposure {hairline:.2f}.".format(
-                primary=hair.primary_style,
-                secondary=hair.secondary_style,
-                updo=hair.updo_type,
-                length=hair.length,
-                parting=hair.parting,
-                texture=hair.texture,
-                finish=hair.finish,
-                color=hair.color.label,
-                crown=hair.volume_crown,
-                side=hair.volume_side,
-                hairline=hair.hairline_exposure,
-            ),
+            f"Hairstyle target: {hair_target}. Crown volume {hair.volume_crown:.2f}, side volume {hair.volume_side:.2f}, hairline exposure {hair.hairline_exposure:.2f}.",
             "Bangs target: {bangs}, density {density:.2f}, length {length}, gap ratio {gap:.2f}.".format(
                 bangs=("none" if not bangs.exists else bangs.type),
                 density=bangs.density,
                 length=bangs.length,
                 gap=bangs.gap_ratio,
             ),
-            "Makeup target: base finish {finish}, blush {blush}, contour {contour}, highlight {highlight}, brows {browshape}/{browcolor}, eyeshadow {eyemain}/{eyesecondary}, eyeliner {liner}/{linercolor}, lips {lipcolor}.".format(
-                finish=makeup.base_makeup.finish,
-                blush=makeup.blush.color,
-                contour=makeup.contour.color,
-                highlight=makeup.highlight.color,
-                browshape=makeup.eyebrow.shape,
-                browcolor=makeup.eyebrow.color,
-                eyemain=makeup.eyeshadow.main_color,
-                eyesecondary=makeup.eyeshadow.secondary_color,
-                liner=makeup.eyeliner.style,
-                linercolor=makeup.eyeliner.color,
-                lipcolor=makeup.lips.color,
-            ),
+            f"Makeup target: base finish {makeup.base_makeup.finish}, blush {makeup.blush.color}, contour {makeup.contour.color}, highlight {makeup.highlight.color}, {brow_target}, {eye_target}, {lip_target}.",
+            "Keep upper lid, lower lid, and outer-corner makeup semantically distinct when the reference indicates different tones or finishes.",
             "Mainline controls: hairstyle strength {:.2f}, makeup strength {:.2f}, identity lock strength {:.2f}.".format(
                 job.hairstyle_strength,
                 job.makeup_strength,
                 job.identity_lock_strength,
             ),
             "Use the provided source face mesh, face bounding box, and landmark guidance as identity-preserving structural anchors when available.",
-            "Use the provided reference region assets for hair, bangs, eyes, brows, lips, cheeks, and complexion as structured style evidence rather than inheriting the reference identity.",
+            "Use the provided reference region assets for hair, bangs, full-eye region, upper lids, lower lids, outer corners, brows, lips, cheeks, and complexion as structured style evidence rather than inheriting the reference identity.",
             "Overall texture: photo style {style}, vibe {vibe}, caption {caption}.".format(
                 style=texture.photo_style,
                 vibe=texture.overall_vibe,
@@ -714,6 +758,17 @@ class ArkVisualClient:
             makeup_s=policy.makeup.source_weight,
             makeup_t=policy.makeup.style_weight,
         )
+
+    def _is_known_trait(self, value: object) -> bool:
+        return value not in {None, "", "unknown", "unclear", "none"}
+
+    def _join_known_traits(self, items: list[tuple[str, object]]) -> str:
+        parts = [
+            f"{label} {value}"
+            for label, value in items
+            if self._is_known_trait(value)
+        ]
+        return ", ".join(parts)
 
     def _normalize_source_and_mask_to_base64(
         self,

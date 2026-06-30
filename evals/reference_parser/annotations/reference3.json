@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference3",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference3.jpg",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User confirmed the eye look is truly green rather than only a greenish filter cast.",
+  "expected": {
+    "hair": {
+      "style": "updo",
+      "updo_type": null,
+      "primary_style": null,
+      "parting": "middle",
+      "surface_finish": "soft_natural",
+      "bun_silhouette": null,
+      "color": "natural_brown",
+      "color_temperature": "neutral"
+    },
+    "bangs": {
+      "exists": true,
+      "type": "airy_side_bangs"
+    },
+    "side_locks": {
+      "exists": true
+    },
+    "eyebrow": {
+      "shape": "soft_arch",
+      "color": "light_brown",
+      "tone": "neutral"
+    },
+    "eyeshadow": {
+      "upper_lid_color": "yellow_green",
+      "lower_lid_color": "yellow_green",
+      "outer_corner_color": "yellow_green",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "inner_defined",
+      "color": "black"
+    },
+    "lips": {
+      "color": "coral_peach",
+      "finish": "satin",
+      "temperature": "warm"
+    },
+    "base_makeup": {
+      "finish": "semi_glowy"
+    }
+  }
+}

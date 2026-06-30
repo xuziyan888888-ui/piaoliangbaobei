@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference2",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference2.png",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User confirmed peach-pink satin lips and the heavy black cat-eye as the main eye focus.",
+  "expected": {
+    "hair": {
+      "style": "down",
+      "updo_type": "none",
+      "primary_style": "down",
+      "parting": "side_7_3",
+      "surface_finish": "sleek_polished",
+      "bun_silhouette": "none",
+      "color": "dark_brown",
+      "color_temperature": "neutral"
+    },
+    "bangs": {
+      "exists": true,
+      "type": "side_swept_bangs"
+    },
+    "side_locks": {
+      "exists": false
+    },
+    "eyebrow": {
+      "shape": "straight_soft_arch",
+      "color": "deep_brown",
+      "tone": null
+    },
+    "eyeshadow": {
+      "upper_lid_color": "light_brown",
+      "lower_lid_color": "light_brown",
+      "outer_corner_color": "light_brown",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "micro_wing",
+      "color": "black"
+    },
+    "lips": {
+      "color": "peach_pink",
+      "finish": "satin",
+      "temperature": "warm"
+    },
+    "base_makeup": {
+      "finish": "matte"
+    }
+  }
+}

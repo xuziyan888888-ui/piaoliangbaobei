@@ -1,6 +1,6 @@
 ﻿# Project Memory
 
-Last Updated: 2026-06-28 18:18 Asia/Shanghai
+Last Updated: 2026-06-28 20:58 Asia/Shanghai
 
 ## 妞ゅ湱娲伴惄顔界垼
 
@@ -225,6 +225,42 @@ Last Updated: 2026-06-28 18:18 Asia/Shanghai
 - P2: 转向更细粒度的面部禁改区拆分，优先把眼周、鼻梁、唇形、下颌线从现有 face lock 中单独提升为更硬的结构保护区。
 - P5: 优先核查 Ark 是否存在真正可执行的 identity/control/mask 能力入口；如果没有，继续在当前链路里做更多 prompt/后处理微调的收益预计有限。
 
+### [2026-06-30 13:20 Asia/Shanghai] reference.png parser correction and fallback passthrough fix
+- 时间: 2026-06-30 13:20 Asia/Shanghai
+- 实验名称: reference.png parser correction and fallback passthrough fix
+- 实验配置: 修改 `app/services/reference_parser.py`，继续围绕 `reference.png` 的偏分轻碎刘海、灰眉、上眼皮粉色、下眼睑暖棕与浅豆沙水光唇做通用规则修正；修改 `app/services/model_clients.py` 强化“参考图只读妆发风格、不读参考脸”的提示；修改 `app/services/generator.py` 与 `app/services/artifacts.py`，让 fallback 在 provider 出错时透传上阶段真实输入图，而不是继续传空 `mock://` 图。
+- 实验结果: `C:\\Users\\19770\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe -m compileall app` 通过；`scripts/inspect_reference_parsing.py D:\\水木年华\\测试图\\reference.png` 当前解析结果已对齐为 `hair.parting=side_6_4`、`bangs.type=airy_side_bangs`、`eyebrow.color=grey_brown`、`eyeshadow.upper_lid_color=soft_pink`、`lower_lid_color=warm_brown`、`outer_corner_color=warm_brown`、`lips.color=dusty_rose`、`lips.finish=glossy`；`scripts/run_reference_parser_eval.py` 总体准确率从 `0.7391` 提升到 `0.7578`；fallback 冒烟验证已确认会把本地真实图片复制落盘而不是写出 0 字节占位图。
+- 实验结论: 这轮修正证明“围绕单样本修正也可以做成泛化增益”，但真实出图质量仍未达到产品可接受水平；当前更关键的方向不是继续堆长文案，而是提升参考图视觉条件和 region assets 在生成环节中的权重。
+
+## 当前问题
+
+- 2026-06-30 13:20 Asia/Shanghai: 虽然 `reference.png` 的解析结果已更接近人工判断，但 Ark global 候选图仍经常出现厚刘海、过卷鬓角、过甜妆面等问题，说明当前主问题已经从“解析完全错”转为“视觉细节迁移仍主要被模型自由发挥”。
+- 2026-06-30 13:20 Asia/Shanghai: 当前产品链路仍偏向“reference -> 解析成长文案 -> 生成”，而不是“整图参考 + 局部视觉条件 + 结构字段 + 规则约束”的视觉主导路线。
+
+## 当前技术路线
+
+- 2026-06-30 13:20 Asia/Shanghai: 当前路线进一步明确为“保留参考整图输入，但弱化纯文字主导，逐步转向 region assets 和局部视觉证据主导的编辑式生成”。
+
+## 下一步计划
+
+- P0: 提升 `reference_region_assets` 在生成阶段中的权重，让 hair/bangs/eye/lips/complexion patch 不再只是调试产物。
+- P0: 将 parser 的角色收缩为粗粒度结构器，避免继续强行把所有连续视觉细节压成文字标签。
+- P1: 在评分层加入区域视觉相似度，而不只依赖字段二次解析一致性。
+
+## 最近修改文件
+
+### [2026-06-30 13:20 Asia/Shanghai] File updates
+- 文件名: app/services/reference_parser.py
+  修改原因: 修正 `reference.png` 的偏分碎刘海、灰眉、上眼皮粉色、下眼睑暖棕等解析结果，并保持对整套参考图评测的泛化增益。
+- 文件名: app/services/model_clients.py
+  修改原因: 强化生成提示中“参考图只作为妆发风格板，不作为身份来源”的约束表达。
+- 文件名: app/services/generator.py
+  修改原因: provider fallback 时优先透传上阶段真实输入图，避免继续制造空 `mock://` 中间图。
+- 文件名: app/services/artifacts.py
+  修改原因: 支持将本地真实图片路径直接复制落盘，保证 fallback 中间结果可继续被后续阶段消费。
+- 文件名: 更像豆包的参考图改造路线_2026-06-30.md
+  修改原因: 将“从文字主导升级到视觉条件主导”的后续技术路线单独整理成可执行文档，供后续开发和回滚参考。
+
 ## 最近修改文件
 
 ### [2026-06-27 23:16 Asia/Shanghai] File updates
@@ -369,4 +405,139 @@ Last Updated: 2026-06-28 18:18 Asia/Shanghai
   修改原因: 将 visual mode 的 `transfer_score` 升级为基于候选结果图再次解析的真实妆发比对，并加入 `updo_missing`、`bangs_missing`、`side_locks_missing` 等硬失败标记。
 - 文件名: app/services/orchestrator.py
   修改原因: 为 `visual_identity` 增加 Ark global base 阶段内部 oversampling，并将 transfer hard failures 接入候选拒绝逻辑与任务元数据。
+
+### [2026-06-28 19:05 Asia/Shanghai] handoff and parser-root-cause consolidation
+- 时间: 2026-06-28 19:05 Asia/Shanghai
+- 实验名称: handoff and parser-root-cause consolidation
+- 实验配置: 基于本轮关于参考图妆容/发型提示词错误的排查，整理解析器根因、当前链路状态、后续优先级、风险与执行注意事项，并落盘新的交接文档。
+- 实验结果: 新增 `项目交接说明_2026-06-28.md`，明确记录当前主矛盾已从“候选筛选不足”转为“参考图解析器与 prompt schema 不具备细粒度、可泛化的妆发语义表达能力”；同时明确后续优先级应先重做解析器与 prompt schema，再修 fallback 稳定性，最后再继续调主链路生成策略。
+- 实验结论: 当前最重要的交接信息已经从零散对话沉淀为结构化文档，后续接手者可以直接按 P0/P1/P2 顺序推进，而不必重复争论 oversampling、词库大小或单样本提示词微调。
+
+## 下一步计划
+
+- P0: 重做参考图解析器，优先补齐发型结构、眉毛、上下眼皮、唇妆质地与底妆质感等细粒度字段，并允许低置信度输出 `unknown`。
+- P0: 重做 prompt schema，使解析器输出的细粒度字段可以结构化透传到生成链路，而不是再被压缩成粗标签。
+- P1: 修复 `hybrid_makeup_refine_stage` 的 `Access Denied` 以及 `two_stage_local_edit` 的 `cannot identify image file` / 0 字节中间输出问题。
+
+## 最近修改文件
+
+### [2026-06-28 19:05 Asia/Shanghai] File updates
+- 文件名: 项目交接说明_2026-06-28.md
+  修改原因: 汇总当前项目状态、已完成工作、最近关于参考图解析错误的根因判断、后续优先级和执行注意事项，供后续开发直接接手推进。
+
+### [2026-06-28 20:05 Asia/Shanghai] P0 parser/schema fine-grained field expansion
+- 时间: 2026-06-28 20:05 Asia/Shanghai
+- 实验名称: P0 parser/schema fine-grained field expansion
+- 实验配置: 修改 `app/models/pipeline.py`、`app/services/reference_parser.py`、`app/services/model_clients.py`、`app/services/bilingual_summary.py`，为参考图解析结果新增上眼皮/下眼皮/眼尾、眉色冷暖、唇妆质地、发面质感、盘发轮廓等细粒度字段；同步扩展 reference region masks/assets；并重写 prompt schema 以透传这些字段且跳过 `unknown`。
+- 实验结果: `C:\\Users\\19770\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe -m compileall app scripts` 通过；运行 `scripts/inspect_reference_parsing.py D:\\水木年华\\测试图\\reference.png` 后，结果已包含 `upper_eyelid_* / lower_eyelid_* / outer_corner_* / aegyo_sal_*` mask、`upper_lid_patch / lower_lid_patch / outer_corner_patch` region asset，以及 `hair.surface_finish / hair.bun_silhouette / eyebrow.tone / eyeshadow.upper_lid_color / eyeshadow.lower_lid_color / eyeshadow.outer_corner_color / lips.finish` 等新字段。
+- 实验结论: P0.1 和 P0.2 的最小工程骨架已经接通，系统开始具备“更细粒度解析 -> 更细粒度 prompt 表达”的能力；下一步重点应转向校正这些新字段在关键样本上的准确性，而不是再停留在旧的粗标签 schema。
+
+## 当前问题
+
+- 2026-06-28 20:05 Asia/Shanghai: 细粒度字段与 prompt schema 已接通，但 `reference.png` 当前解析结果里仍存在明显语义偏差，例如 `eyeshadow.upper_lid_color=warm_brown`、`lips.color=soft_beige`、`eyebrow.tone=warm`，说明新框架已到位但颜色/材质判别准确率仍需继续校正。
+
+## 下一步计划
+
+- P0a: 针对 `reference.png` 这类关键样本继续调 `reference_parser.py` 的颜色、材质与低置信度判别逻辑，优先修正上眼皮、下眼皮、眉色与唇妆质地。
+- P0b: 基于新字段再次审视 `model_clients.py` 的 mainline/hair/makeup prompt 语义，确认生成端收到的描述与肉眼目标一致，再进入 fallback 稳定性修复。
+
+## 最近修改文件
+
+### [2026-06-28 20:05 Asia/Shanghai] File updates
+- 文件名: app/models/pipeline.py
+  修改原因: 为参考图解析与 prompt 透传新增细粒度字段，包括眼妆分层、眉色冷暖、唇妆质地、发面质感和盘发轮廓。
+- 文件名: app/services/reference_parser.py
+  修改原因: 扩展参考图 region masks/assets，并将解析逻辑从粗粒度眼妆/唇妆/发面判断升级为更细的结构化字段输出，同时补上 `unknown` 导向的颜色解析策略。
+- 文件名: app/services/model_clients.py
+  修改原因: 重写 mainline 与 stage prompt schema，透传上眼皮/下眼皮/眼尾、唇妆质地、发面质感、盘发轮廓等新字段，并跳过 `unknown` 避免错误弱信息污染 prompt。
+- 文件名: app/services/bilingual_summary.py
+  修改原因: 扩展参考解析与 transfer payload summary，让新细粒度字段可在调试摘要中直接观察。
+- 文件名: PROJECT_MEMORY.md
+  修改原因: 记录本次 P0 parser/schema 落地结果、当前剩余偏差，以及下一步继续校正字段准确性的方向。
+
+### [2026-06-28 20:58 Asia/Shanghai] Multi-sample reference eval scaffold
+- 时间: 2026-06-28 20:58 Asia/Shanghai
+- 实验名称: Multi-sample reference eval scaffold
+- 实验配置: 新增 `scripts/bootstrap_reference_eval.py`、`scripts/run_reference_parser_eval.py` 与 `evals/reference_parser/README.md`，用于从 `测试图/reference*` 自动初始化参考图评测集、生成每张图的轻量标注模板、并在只比较已人工确认字段的前提下运行解析评测。
+- 实验结果: 运行 `C:\\Users\\19770\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe scripts\\bootstrap_reference_eval.py` 后，已在 `evals/reference_parser/annotations/` 下生成 7 份模板标注，并写出 `evals/reference_parser/manifest.json`；运行 `scripts/run_reference_parser_eval.py` 后，当前报告显示 `sample_count=7`、`pending_samples=7`、`annotated_field_count=0`，说明评测管线已打通但尚未录入人工真值。
+- 实验结论: 项目已经从“围绕单张参考图口头校对”升级到“可扩展的多样本参考图评测框架”；下一步应优先补第一批高价值人工标注，再用评测结果驱动解析器泛化改进，而不是继续只盯单样本微调。
+
+## 当前问题
+
+- 2026-06-28 20:58 Asia/Shanghai: 多样本评测框架已搭好，但 7 份 annotation 目前全部是 `pending` 模板，尚未录入人工真值，因此还不能给出跨样本解析准确率。
+
+## 下一步计划
+
+- 先在 `evals/reference_parser/annotations/` 中补第一批关键字段真值，优先覆盖发型主结构、刘海、side locks、眉色冷暖、上/下眼皮颜色、唇妆质地。
+- 人工标注一旦达到最小覆盖后，立即使用 `scripts/run_reference_parser_eval.py` 驱动 `reference_parser.py` 的泛化校正，而不是再用单张图片做主观口头判断。
+
+## 最近修改文件
+
+### [2026-06-28 20:58 Asia/Shanghai] File updates
+- 文件名: scripts/bootstrap_reference_eval.py
+  修改原因: 新增参考图评测集初始化脚本，可从现有 `reference*` 自动生成 manifest 与标注模板。
+- 文件名: scripts/run_reference_parser_eval.py
+  修改原因: 新增参考图解析评测脚本，只对人工确认过的字段做比较，便于逐步扩大评测覆盖面。
+- 文件名: evals/reference_parser/README.md
+  修改原因: 补充评测集结构、标注原则、状态字段与运行方式说明。
+- 文件名: evals/reference_parser/manifest.json
+  修改原因: 记录首批 7 张参考图样本与对应 annotation 路径，作为多样本评测入口。
+- 文件名: evals/reference_parser/annotations/reference.json
+  修改原因: 生成首批样本的轻量标注模板，其余 `reference2-7.json` 同理由脚本自动生成。
+- 文件名: PROJECT_MEMORY.md
+  修改原因: 记录多样本评测框架已落地、当前未标注状态和下一步标注驱动泛化改进的路线。
+
+### [2026-06-28 19:26 Asia/Shanghai] Human-labeled reference eval and parser color pass
+- 时间: 2026-06-28 19:26 Asia/Shanghai
+- 实验名称: human-labeled reference eval and parser color pass
+- 实验配置: 根据用户逐张确认结果，填充 `evals/reference_parser/annotations/reference*.json` 七份人工真值；运行 `scripts/run_reference_parser_eval.py` 得到第一轮基线后，再修改 `app/services/reference_parser.py` 的区域取色、眼影颜色映射、唇色映射与唇妆质地判别，并再次运行评测。
+- 实验结果: 七份 annotation 已全部从 `pending` 变为 `ready`，首轮评测为 `annotated_field_count=161`、`matched_field_count=91`、`overall_accuracy=0.5652`；两轮局部修正后再次运行评测，结果提升到 `matched_field_count=104`、`overall_accuracy=0.6460`。提升最明显的字段包括 `eyeshadow.upper_lid_color`（0.1429 -> 0.7143）、`lips.color`（0.1429 -> 0.7143）、`lips.finish`（0.5714 -> 0.7143）、`reference4` 样本准确率（0.6087 -> 0.7391）与 `reference7` 样本准确率（0.5833 -> 0.7500）。
+- 实验结论: 多样本人工真值评测已经正式进入可迭代状态，并证明“先标注、再量化、再小步修 parser”这条路线有效；当前最大的剩余误差已收敛到发型主结构/分缝、眉色冷暖、以及少数样本的眼影色相和唇色冷暖，而不是整个细粒度框架本身无效。
+
+## 当前问题
+
+- 2026-06-28 19:26 Asia/Shanghai: 参考图解析器在 `reference3` 的绿色眼妆、`reference5` 的半扎发主结构、`reference6` 的双麻花辫主结构、以及多张图的眉色/唇色冷暖判断上仍有明显偏差。
+- 2026-06-28 19:26 Asia/Shanghai: 当前发型 taxonomy 对 `half_up_half_down`、`braided_pigtails` 等结构尚未真正学会，只是通过 annotation 暴露出了这类泛化缺口。
+
+## 下一步计划
+
+- 继续优先修 `app/services/reference_parser.py`，下一轮重点放在发型主结构识别、刘海类型区分、眉色/眉毛冷暖，以及 `reference3` 这类强色彩眼影样本的上/下眼皮色相映射。
+- 维持“先补人工真值、再跑 `scripts/run_reference_parser_eval.py`、再做小步修正”的节奏，避免重新回到单样本主观调参。
+
+## 最近修改文件
+
+### [2026-06-28 19:26 Asia/Shanghai] File updates
+- 文件名: evals/reference_parser/annotations/reference.json
+  修改原因: 根据用户确认结果补录 `reference.png` 的人工真值，并将样本状态更新为 `ready`；其余 `reference2-7.json` 同理由完成首批人工标注。
+- 文件名: app/services/reference_parser.py
+  修改原因: 新增更稳的 makeup feature 取色逻辑，并细化眼影颜色、唇色与唇妆质地判别规则，用首批 7 张参考图评测结果驱动泛化修正。
+- 文件名: PROJECT_MEMORY.md
+  修改原因: 记录首批人工真值评测基线、两轮 parser 修正后的准确率提升，以及当前剩余高优先级误差类型。
+
+### [2026-06-28 19:26 Asia/Shanghai] Hair-structure and tone heuristics pass
+- 时间: 2026-06-28 19:26 Asia/Shanghai
+- 实验名称: hair-structure and tone heuristics pass
+- 实验配置: 继续修改 `app/services/reference_parser.py`，在 `refine_hair_structure` 中新增针对 `updo_with_bangs`、`half_up_half_down`、`braided_pigtails` 的二次纠偏规则；同时将 `brow`/`lips` 的冷暖判断改为更保守的 hue/saturation/brightness 组合规则，并放宽眉色分类避免被背景污染误判为 `deep_charcoal`。
+- 实验结果: `C:\\Users\\19770\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe -m compileall app scripts` 通过；再次运行 `scripts/run_reference_parser_eval.py` 后，总体准确率从上一轮的 `0.6460` 提升到 `0.7516`，`matched_field_count` 从 `104` 提升到 `121`。其中 `hair.style / hair.primary_style / hair.updo_type / hair.bun_silhouette` 全部达到 1.0，`hair.parting` 提升到 `0.8571`，`hair.surface_finish` 提升到 `0.8571`，`eyebrow.color` 与 `eyebrow.tone` 提升到 1.0，`lips.temperature` 提升到 `0.8571`。关键样本中，`reference3` 准确率提升到 `0.5714` 且发型已被纠正为 `updo_with_bangs`，`reference5` 提升到 `0.7917` 且主结构已识别为 `half_up_half_down`，`reference6` 提升到 `0.7391` 且主结构已识别为 `braided_pigtails`。
+- 实验结论: 本轮用户最关心的“发型主结构没学会”问题已经从主要阻塞项降为局部残差问题；当前更核心的剩余误差已经收敛到发色/发色冷暖、刘海子类型、个别眼影色相和眼线风格，而不是主结构字段仍然缺失或完全失准。
+
+## 当前问题
+
+- 2026-06-28 19:26 Asia/Shanghai: 发型主结构识别已明显改善，但 `hair.color / hair.color_temperature` 仍是当前最弱字段，7 张样本上的准确率仍分别只有 `0.2857 / 0.2857`。
+- 2026-06-28 19:26 Asia/Shanghai: `reference3` 的绿色眼妆仍存在“上眼皮偏粉、下眼尾偏绿”的分层误判；`reference2` 的眼影仍偏 `peach_brown`；`reference6` 的外眼角与唇色仍偏暖。
+- 2026-06-28 19:26 Asia/Shanghai: `bangs.type`、`eyeliner.style`、`eyeliner.color` 仍有稳定残差，说明当前纯启发式规则对刘海和眼线的细分类还不够稳。
+
+## 下一步计划
+
+- 下一轮优先从发色/发色冷暖的取样区域入手，避免头发高光、背景和脸部高亮继续污染 hair color 判断。
+- 针对 `reference3` 的绿色眼影补更强的上眼皮区域取样与色相映射，减少“上眼皮被误读成粉调、下眼尾被读成绿调”的分裂现象。
+- 如果继续做样本扩展，优先补 5 到 10 张短发/半扎/编发/强色彩眼妆参考图，验证这套新 heuristics 不是只在当前 7 张图上成立。
+
+## 最近修改文件
+
+### [2026-06-28 19:26 Asia/Shanghai] File updates
+- 文件名: app/services/reference_parser.py
+  修改原因: 新增发型主结构二次纠偏规则，显式识别 `updo_with_bangs`、`half_up_half_down`、`braided_pigtails`，并重做眉唇冷暖判断与眉色分类。
+- 文件名: PROJECT_MEMORY.md
+  修改原因: 记录本轮主结构纠偏后的评测提升，以及剩余误差已收敛到发色、刘海和局部眼妆细分类。
 

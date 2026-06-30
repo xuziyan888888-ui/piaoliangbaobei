@@ -82,6 +82,9 @@ class ReferenceRegionAssets(BaseModel):
     hair_patch: RegionImageAsset | None = None
     bangs_patch: RegionImageAsset | None = None
     eyes_patch: RegionImageAsset | None = None
+    upper_lid_patch: RegionImageAsset | None = None
+    lower_lid_patch: RegionImageAsset | None = None
+    outer_corner_patch: RegionImageAsset | None = None
     brows_patch: RegionImageAsset | None = None
     lips_patch: RegionImageAsset | None = None
     cheeks_patch: RegionImageAsset | None = None
@@ -218,6 +221,10 @@ class RegionMaskSet(BaseModel):
     upper_eyelid_right: str | None = None
     lower_eyelid_left: str | None = None
     lower_eyelid_right: str | None = None
+    outer_corner_left: str | None = None
+    outer_corner_right: str | None = None
+    aegyo_sal_left: str | None = None
+    aegyo_sal_right: str | None = None
     eyelashes_upper: str | None = None
     eyelashes_lower: str | None = None
     lips: str | None = None
@@ -248,6 +255,8 @@ class HairFeatures(BaseModel):
     parting: str = "unknown"
     texture: str = "unknown"
     color: ColorFeature = Field(default_factory=ColorFeature)
+    color_temperature: str = "unknown"
+    color_depth: str = "unknown"
     volume_crown: float = 0.5
     volume_side: float = 0.5
     hairline_exposure: float = 0.5
@@ -255,6 +264,8 @@ class HairFeatures(BaseModel):
     primary_style: str = "unknown"
     secondary_style: str = "unknown"
     finish: str = "unknown"
+    surface_finish: str = "unknown"
+    bun_silhouette: str = "none"
     gloss: float = 0.0
     sleekness: float = 0.0
     confidence: float = 0.5
@@ -315,7 +326,9 @@ class HighlightFeatures(BaseModel):
 class EyebrowFeatures(BaseModel):
     shape: str = "unknown"
     color: str = "unknown"
+    tone: str = "unknown"
     thickness: float = 0.0
+    density: float = 0.0
     arch: float = 0.0
     hair_texture: float = 0.0
     intensity: float = 0.0
@@ -335,9 +348,13 @@ class EyelinerFeatures(BaseModel):
 class EyeshadowFeatures(BaseModel):
     main_color: str = "unknown"
     secondary_color: str = "unknown"
+    upper_lid_color: str = "unknown"
+    lower_lid_color: str = "unknown"
+    outer_corner_color: str = "unknown"
     placement: str = "unknown"
     gradient: str = "unknown"
     finish: str = "unknown"
+    shimmer: float = 0.0
     intensity: float = 0.0
     confidence: float = 0.5
 
@@ -364,6 +381,9 @@ class AegyoSalFeatures(BaseModel):
 class LipFeatures(BaseModel):
     color: str = "unknown"
     shape: str = "unknown"
+    temperature: str = "unknown"
+    lightness: str = "unknown"
+    finish: str = "unknown"
     edge_blur: float = 0.0
     gloss: float = 0.0
     saturation: float = 0.0

@@ -1,0 +1,51 @@
+{
+  "sample_id": "reference5",
+  "image_path": "D:\\姘存湪骞村崕\\娴嬭瘯鍥綷\\reference5.jpg",
+  "status": "ready",
+  "tags": [
+    "user_confirmed"
+  ],
+  "notes": "User leaned toward half-up rather than low tied hair.",
+  "expected": {
+    "hair": {
+      "style": "down",
+      "updo_type": "none",
+      "primary_style": "half_up_half_down",
+      "parting": "middle",
+      "surface_finish": "airy_textured",
+      "bun_silhouette": "none",
+      "color": "warm_brown",
+      "color_temperature": "warm"
+    },
+    "bangs": {
+      "exists": true,
+      "type": "airy_side_bangs"
+    },
+    "side_locks": {
+      "exists": true
+    },
+    "eyebrow": {
+      "shape": "straight_soft_arch",
+      "color": "deep_brown",
+      "tone": "neutral"
+    },
+    "eyeshadow": {
+      "upper_lid_color": "warm_brown",
+      "lower_lid_color": "warm_brown",
+      "outer_corner_color": "warm_brown",
+      "finish": "matte"
+    },
+    "eyeliner": {
+      "style": "thin_lifted",
+      "color": "soft_brown"
+    },
+    "lips": {
+      "color": "dusty_rose",
+      "finish": "glossy",
+      "temperature": "neutral"
+    },
+    "base_makeup": {
+      "finish": "semi_glowy"
+    }
+  }
+}
